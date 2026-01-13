@@ -39,6 +39,7 @@ import DatabaseSelector from "@/components/DatabaseSelector";
 import RelationshipDiagram from "@/components/RelationshipDiagram";
 import SQLAssistant from "@/components/SQLAssistant";
 import { cn } from "@/lib/utils";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
@@ -105,7 +106,18 @@ export default function DatabaseInterface() {
   const [executionTime, setExecutionTime] = useState(null);
   const [stats, setStats] = useState({ totalQueries: 0, successfulQueries: 0 });
   const [showHistory, setShowHistory] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const queryHistoryRef = useRef(null);
+
+  // Detect screen size for responsive layout
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     fetchTables();
@@ -116,8 +128,6 @@ export default function DatabaseInterface() {
     setCurrentDatabase(newDatabase);
     localStorage.setItem("current-database", newDatabase);
     setResult(null);
-    setError(null);
-    setSuccess(null);
   };
 
   const loadStats = () => {
@@ -462,131 +472,148 @@ export default function DatabaseInterface() {
             </CardContent>
           </Card>
 
-          {/* Main Content - 3 Column Layout: SQL Editor, AI Assistant, Query Templates */}
-          <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr] gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
-            {/* Column 1: SQL Editor */}
-            <Card className="border-primary/20 shadow-lg h-[350px] lg:h-[400px] flex flex-col">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Code2 className="h-5 w-5 text-primary" />
-                  SQL Editor
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Write and execute your SQL queries
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
-                <div className="flex-1 overflow-hidden">
-                  <SQLEditor
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Enter SQL query (e.g., SELECT * FROM users)&#10;&#10;Shortcuts:&#10;• Ctrl/Cmd + Enter to execute&#10;• Tab for indentation"
-                    onExecute={executeQuery}
-                    className="h-full"
+          {/* Main Content - Resizable 3 Column Layout: SQL Editor, AI Assistant, Query Templates */}
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 h-[800px] lg:h-[600px]">
+            <ResizablePanelGroup
+              direction={isMobile ? "vertical" : "horizontal"}
+              className="rounded-lg border border-primary/20 shadow-lg bg-card overflow-hidden"
+            >
+              {/* Panel 1: SQL Editor */}
+              <ResizablePanel defaultSize={isMobile ? 40 : 50} minSize={isMobile ? 25 : 30}>
+                <Card className="border-none shadow-none h-full flex flex-col rounded-none">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Code2 className="h-5 w-5 text-primary" />
+                      SQL Editor
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Write and execute your SQL queries
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
+                    <div className="flex-1 overflow-hidden">
+                      <SQLEditor
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Enter SQL query (e.g., SELECT * FROM users)&#10;&#10;Shortcuts:&#10;• Ctrl/Cmd + Enter to execute&#10;• Tab for indentation"
+                        onExecute={executeQuery}
+                        className="h-full"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={executeQuery}
+                        disabled={loading}
+                        className="flex-1 gap-2 transition-all hover:scale-105"
+                        size="lg"
+                      >
+                        {loading ? (
+                          <>
+                            <div className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                            Executing...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4" />
+                            Execute Query
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setQuery("")}
+                        disabled={!query}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </ResizablePanel>
+
+              <ResizableHandle withHandle />
+
+              {/* Panel 2: AI Assistant */}
+              <ResizablePanel defaultSize={isMobile ? 30 : 25} minSize={isMobile ? 20 : 20}>
+                <div className="h-full p-4">
+                  <SQLAssistant
+                    tables={tables}
+                    onInsertQuery={handleSelectQuery}
+                    currentDatabase={currentDatabase}
+                    className="h-full border-none shadow-none"
                   />
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={executeQuery}
-                    disabled={loading}
-                    className="flex-1 gap-2 transition-all hover:scale-105"
-                    size="lg"
-                  >
-                    {loading ? (
-                      <>
-                        <div className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                        Executing...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="h-4 w-4" />
-                        Execute Query
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setQuery("")}
-                    disabled={!query}
-                  >
-                    Clear
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              </ResizablePanel>
 
-            {/* Column 2: AI Assistant */}
-            <div className="h-[350px] lg:h-[400px]">
-              <SQLAssistant
-                tables={tables}
-                onInsertQuery={handleSelectQuery}
-                currentDatabase={currentDatabase}
-                className="h-full"
-              />
-            </div>
+              <ResizableHandle withHandle />
 
-            {/* Column 3: Query Templates or History */}
-            {showHistory ? (
-              <QueryHistory
-                ref={queryHistoryRef}
-                onSelectQuery={handleSelectQuery}
-                className="h-[350px] lg:h-[400px]"
-              />
-            ) : (
-              <Card className="border-primary/20 shadow-lg h-[350px] lg:h-[400px] flex flex-col">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <BookOpen className="h-5 w-5 text-primary" />
-                    Query Templates
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Click any template to load into the editor
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-hidden p-0">
-                  <Tabs defaultValue="all" className="w-full h-full flex flex-col">
-                    <TabsList className="grid w-full grid-cols-4 mx-4">
-                      <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
-                      <TabsTrigger value="DQL" className="text-xs">DQL</TabsTrigger>
-                      <TabsTrigger value="DML" className="text-xs">DML</TabsTrigger>
-                      <TabsTrigger value="DDL" className="text-xs">DDL</TabsTrigger>
-                    </TabsList>
-                    {["all", "DQL", "DML", "DDL"].map((category) => (
-                      <TabsContent key={category} value={category} className="flex-1 overflow-hidden mt-2 px-4 pb-4">
-                        <ScrollArea className="h-full">
-                          <div className="space-y-2 pr-4">
-                            {exampleQueries
-                              .filter((ex) => category === "all" || ex.category === category)
-                              .map((example, idx) => (
-                                <Card
-                                  key={idx}
-                                  className="cursor-pointer transition-all hover:border-primary/50 hover:shadow-md hover:scale-[1.02]"
-                                  onClick={() => setQuery(example.sql)}
-                                >
-                                  <CardContent className="p-3">
-                                    <div className="flex items-start justify-between gap-2 mb-2">
-                                      <h4 className="font-semibold text-xs">{example.title}</h4>
-                                      <Badge variant="outline" className="text-xs">
-                                        {example.category}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground mb-2">
-                                      {example.description}
-                                    </p>
-                                    <code className="text-xs block bg-muted p-2 rounded-md font-mono line-clamp-2">
-                                      {example.sql}
-                                    </code>
-                                  </CardContent>
-                                </Card>
-                              ))}
-                          </div>
-                        </ScrollArea>
-                      </TabsContent>
-                    ))}
-                  </Tabs>
-                </CardContent>
-              </Card>
-            )}
+              {/* Panel 3: Query Templates or History */}
+              <ResizablePanel defaultSize={isMobile ? 30 : 25} minSize={isMobile ? 20 : 20}>
+                {showHistory ? (
+                  <div className="h-full p-4">
+                    <QueryHistory
+                      ref={queryHistoryRef}
+                      onSelectQuery={handleSelectQuery}
+                      className="h-full border-none shadow-none"
+                    />
+                  </div>
+                ) : (
+                  <Card className="border-none shadow-none h-full flex flex-col rounded-none">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                        Query Templates
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Click any template to load into the editor
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-1 overflow-hidden p-0">
+                      <Tabs defaultValue="all" className="w-full h-full flex flex-col">
+                        <TabsList className="grid w-full grid-cols-4 mx-4">
+                          <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
+                          <TabsTrigger value="DQL" className="text-xs">DQL</TabsTrigger>
+                          <TabsTrigger value="DML" className="text-xs">DML</TabsTrigger>
+                          <TabsTrigger value="DDL" className="text-xs">DDL</TabsTrigger>
+                        </TabsList>
+                        {["all", "DQL", "DML", "DDL"].map((category) => (
+                          <TabsContent key={category} value={category} className="flex-1 overflow-hidden mt-2 px-4 pb-4">
+                            <ScrollArea className="h-full">
+                              <div className="space-y-2 pr-4">
+                                {exampleQueries
+                                  .filter((ex) => category === "all" || ex.category === category)
+                                  .map((example, idx) => (
+                                    <Card
+                                      key={idx}
+                                      className="cursor-pointer transition-all hover:border-primary/50 hover:shadow-md hover:scale-[1.02]"
+                                      onClick={() => setQuery(example.sql)}
+                                    >
+                                      <CardContent className="p-3">
+                                        <div className="flex items-start justify-between gap-2 mb-2">
+                                          <h4 className="font-semibold text-xs">{example.title}</h4>
+                                          <Badge variant="outline" className="text-xs">
+                                            {example.category}
+                                          </Badge>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mb-2">
+                                          {example.description}
+                                        </p>
+                                        <code className="text-xs block bg-muted p-2 rounded-md font-mono line-clamp-2">
+                                          {example.sql}
+                                        </code>
+                                      </CardContent>
+                                    </Card>
+                                  ))}
+                              </div>
+                            </ScrollArea>
+                          </TabsContent>
+                        ))}
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                )}
+              </ResizablePanel>
+            </ResizablePanelGroup>
           </div>
 
           {/* Query Results - Full Width */}
