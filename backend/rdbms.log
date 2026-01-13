@@ -355,3 +355,142 @@ ValueError: Table 'users' already exists
 2026-01-13 12:36:38,879 - server - INFO - Custom RDBMS API Server Starting
 2026-01-13 12:36:38,880 - server - INFO - ================================================================================
 2026-01-13 12:36:38,880 - server - INFO - Version: 2.0.0
+2026-01-13 12:36:48,677 - server - INFO - ================================================================================
+2026-01-13 12:36:48,677 - server - INFO - Custom RDBMS API Server Starting
+2026-01-13 12:36:48,678 - server - INFO - ================================================================================
+2026-01-13 12:36:48,678 - server - INFO - Version: 2.0.0
+2026-01-13 12:36:48,678 - server - INFO - Databases loaded: 1
+2026-01-13 12:36:48,679 - server - INFO - Available databases: default
+2026-01-13 12:36:48,679 - server - INFO - Server start time: 2026-01-13T12:36:48.659611
+2026-01-13 12:36:48,679 - server - INFO - ================================================================================
+2026-01-13 12:37:56,912 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:37:56,917 - server - INFO - Retrieved 0 tables from database 'default'
+2026-01-13 12:37:56,920 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.008s
+2026-01-13 12:37:56,931 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:37:56,933 - server - INFO - Retrieved 0 tables from database 'default'
+2026-01-13 12:37:56,934 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:38:41,398 - server - INFO - Incoming request: GET /api/databases
+2026-01-13 12:38:41,400 - server - INFO - Retrieved 1 databases
+2026-01-13 12:38:41,401 - server - INFO - Incoming request: GET /api/databases/default/info
+2026-01-13 12:38:41,402 - server - INFO - Request completed: GET /api/databases Status: 200 Duration: 0.004s
+2026-01-13 12:38:41,404 - server - INFO - Request completed: GET /api/databases/default/info Status: 200 Duration: 0.003s
+2026-01-13 12:38:41,409 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:38:41,410 - server - INFO - Retrieved 0 tables from database 'default'
+2026-01-13 12:38:41,411 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:38:41,419 - server - INFO - Incoming request: GET /api/databases
+2026-01-13 12:38:41,419 - server - INFO - Retrieved 1 databases
+2026-01-13 12:38:41,421 - server - INFO - Incoming request: GET /api/databases/default/info
+2026-01-13 12:38:41,422 - server - INFO - Request completed: GET /api/databases Status: 200 Duration: 0.003s
+2026-01-13 12:38:41,425 - server - INFO - Request completed: GET /api/databases/default/info Status: 200 Duration: 0.004s
+2026-01-13 12:38:41,428 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:38:41,430 - server - INFO - Retrieved 0 tables from database 'default'
+2026-01-13 12:38:41,431 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:38:47,284 - server - INFO - Incoming request: GET /api/databases
+2026-01-13 12:38:47,287 - server - INFO - Retrieved 1 databases
+2026-01-13 12:38:47,289 - server - INFO - Request completed: GET /api/databases Status: 200 Duration: 0.005s
+2026-01-13 12:38:47,290 - server - INFO - Incoming request: GET /api/databases/default/info
+2026-01-13 12:38:47,292 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:38:47,294 - server - INFO - Retrieved 0 tables from database 'default'
+2026-01-13 12:38:47,295 - server - INFO - Request completed: GET /api/databases/default/info Status: 200 Duration: 0.005s
+2026-01-13 12:38:47,297 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.004s
+2026-01-13 12:38:47,309 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:38:47,311 - server - INFO - Retrieved 0 tables from database 'default'
+2026-01-13 12:38:47,312 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:38:47,319 - server - INFO - Incoming request: GET /api/databases
+2026-01-13 12:38:47,321 - server - INFO - Retrieved 1 databases
+2026-01-13 12:38:47,323 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:38:47,324 - server - INFO - Request completed: GET /api/databases Status: 200 Duration: 0.005s
+2026-01-13 12:38:47,325 - server - INFO - Retrieved 0 tables from database 'default'
+2026-01-13 12:38:47,326 - server - INFO - Incoming request: GET /api/databases/default/info
+2026-01-13 12:38:47,328 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.006s
+2026-01-13 12:38:47,360 - server - INFO - Request completed: GET /api/databases/default/info Status: 200 Duration: 0.034s
+2026-01-13 12:38:47,369 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:38:47,370 - server - INFO - Retrieved 0 tables from database 'default'
+2026-01-13 12:38:47,372 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:39:16,192 - server - INFO - Incoming request: POST /api/databases
+2026-01-13 12:39:16,194 - server - INFO - Creating database: Erick-Students
+2026-01-13 12:39:16,197 - server - INFO - Database 'Erick-Students' created successfully
+2026-01-13 12:39:16,198 - server - INFO - Request completed: POST /api/databases Status: 200 Duration: 0.006s
+2026-01-13 12:39:16,208 - server - INFO - Incoming request: GET /api/databases
+2026-01-13 12:39:16,209 - server - INFO - Retrieved 2 databases
+2026-01-13 12:39:16,210 - server - INFO - Request completed: GET /api/databases Status: 200 Duration: 0.002s
+2026-01-13 12:39:16,361 - server - INFO - Incoming request: GET /api/databases/Erick-Students/info
+2026-01-13 12:39:16,362 - server - INFO - Request completed: GET /api/databases/Erick-Students/info Status: 200 Duration: 0.001s
+2026-01-13 12:39:16,367 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:39:16,368 - server - INFO - Retrieved 0 tables from database 'Erick-Students'
+2026-01-13 12:39:16,369 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:39:16,378 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:39:16,379 - server - INFO - Retrieved 0 tables from database 'Erick-Students'
+2026-01-13 12:39:16,379 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:39:33,588 - server - INFO - Incoming request: POST /api/query
+2026-01-13 12:39:33,589 - server - INFO - Executing query on database 'Erick-Students': CREATE TABLE students (id INT PRIMARY KEY, email STRING UNIQUE, name STRING, is_active BOOL)
+2026-01-13 12:39:33,592 - server - INFO - Query executed successfully in 3.17ms
+2026-01-13 12:39:33,593 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.005s
+2026-01-13 12:39:33,666 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:39:33,667 - server - INFO - Retrieved 1 tables from database 'Erick-Students'
+2026-01-13 12:39:33,669 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:39:40,634 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:39:40,635 - server - INFO - Retrieved 1 tables from database 'Erick-Students'
+2026-01-13 12:39:40,636 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:39:40,654 - server - INFO - Incoming request: GET /api/tables/students
+2026-01-13 12:39:40,655 - server - INFO - Fetching info for table: students from database 'Erick-Students'
+2026-01-13 12:39:40,656 - server - INFO - Request completed: GET /api/tables/students Status: 200 Duration: 0.002s
+2026-01-13 12:39:55,953 - server - INFO - Incoming request: POST /api/query
+2026-01-13 12:39:55,956 - server - INFO - Executing query on database 'Erick-Students': INSERT INTO students VALUES (1, 'alice@example.com', 'Alice Johnson', TRUE)
+2026-01-13 12:39:55,959 - server - INFO - Query executed successfully in 3.04ms
+2026-01-13 12:39:55,961 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.007s
+2026-01-13 12:39:56,060 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:39:56,063 - server - INFO - Retrieved 1 tables from database 'Erick-Students'
+2026-01-13 12:39:56,064 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:40:03,118 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:40:03,118 - server - INFO - Retrieved 1 tables from database 'Erick-Students'
+2026-01-13 12:40:03,119 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.001s
+2026-01-13 12:40:03,126 - server - INFO - Incoming request: GET /api/tables/students
+2026-01-13 12:40:03,127 - server - INFO - Fetching info for table: students from database 'Erick-Students'
+2026-01-13 12:40:03,127 - server - INFO - Request completed: GET /api/tables/students Status: 200 Duration: 0.002s
+2026-01-13 12:40:09,508 - server - INFO - Incoming request: POST /api/query
+2026-01-13 12:40:09,510 - server - INFO - Executing query on database 'Erick-Students': SELECT * FROM students
+2026-01-13 12:40:09,511 - server - INFO - Query executed successfully in 0.46ms
+2026-01-13 12:40:09,511 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.003s
+2026-01-13 16:22:00,836 - server - INFO - ================================================================================
+2026-01-13 16:22:00,838 - server - INFO - Custom RDBMS API Server Starting
+2026-01-13 16:22:00,838 - server - INFO - ================================================================================
+2026-01-13 16:22:00,838 - server - INFO - Version: 2.0.0
+2026-01-13 16:22:00,839 - server - INFO - Databases loaded: 2
+2026-01-13 16:22:00,839 - server - INFO - Available databases: default, Erick-Students
+2026-01-13 16:22:00,839 - server - INFO - Server start time: 2026-01-13T16:22:00.822809
+2026-01-13 16:22:00,839 - server - INFO - ================================================================================
+2026-01-13 16:22:18,257 - server - INFO - Incoming request: GET /api/databases
+2026-01-13 16:22:18,260 - server - INFO - Retrieved 2 databases
+2026-01-13 16:22:18,262 - server - INFO - Incoming request: GET /api/databases/Erick-Students/info
+2026-01-13 16:22:18,264 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 16:22:18,269 - server - INFO - Retrieved 1 tables from database 'Erick-Students'
+2026-01-13 16:22:18,275 - server - INFO - Request completed: GET /api/databases Status: 200 Duration: 0.017s
+2026-01-13 16:22:18,278 - server - INFO - Request completed: GET /api/databases/Erick-Students/info Status: 200 Duration: 0.016s
+2026-01-13 16:22:18,280 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.016s
+2026-01-13 16:22:18,309 - server - INFO - Incoming request: GET /api/databases
+2026-01-13 16:22:18,310 - server - INFO - Retrieved 2 databases
+2026-01-13 16:22:18,312 - server - INFO - Request completed: GET /api/databases Status: 200 Duration: 0.003s
+2026-01-13 16:22:18,318 - server - INFO - Incoming request: GET /api/databases/Erick-Students/info
+2026-01-13 16:22:18,321 - server - INFO - Request completed: GET /api/databases/Erick-Students/info Status: 200 Duration: 0.002s
+2026-01-13 16:22:18,325 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 16:22:18,325 - server - INFO - Retrieved 1 tables from database 'Erick-Students'
+2026-01-13 16:22:18,327 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 16:22:18,339 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 16:22:18,340 - server - INFO - Retrieved 1 tables from database 'Erick-Students'
+2026-01-13 16:22:18,342 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 16:22:18,456 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 16:22:18,474 - server - INFO - Retrieved 1 tables from database 'Erick-Students'
+2026-01-13 16:22:18,477 - server - INFO - Incoming request: GET /api/tables/students
+2026-01-13 16:22:18,477 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.021s
+2026-01-13 16:22:18,480 - server - INFO - Fetching info for table: students from database 'Erick-Students'
+2026-01-13 16:22:18,487 - server - INFO - Request completed: GET /api/tables/students Status: 200 Duration: 0.010s
+2026-01-13 16:22:21,515 - server - INFO - Incoming request: GET /api/tables/students
+2026-01-13 16:22:21,516 - server - INFO - Fetching info for table: students from database 'Erick-Students'
+2026-01-13 16:22:21,518 - server - INFO - Request completed: GET /api/tables/students Status: 200 Duration: 0.003s
+2026-01-13 16:30:04,658 - server - INFO - ================================================================================
+2026-01-13 16:30:04,662 - server - INFO - Custom RDBMS API Server Shutting Down
+2026-01-13 16:30:04,662 - server - INFO - Total queries processed: 0
+2026-01-13 16:30:04,663 - server - INFO - Successful queries: 0
+2026-01-13 16:30:04,664 - server - INFO - Failed queries: 0
+2026-01-13 16:30:04,664 - server - INFO - ================================================================================

@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -13,13 +12,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { toast } from "@/components/ui/sonner";
 import {
   Database,
   Play,
   Table,
   Trash2,
   CheckCircle,
-  XCircle,
   Zap,
   FileJson,
   History,
@@ -37,6 +36,7 @@ import SchemaVisualizer from "@/components/SchemaVisualizer";
 import SQLEditor from "@/components/SQLEditor";
 import ExportMenu from "@/components/ExportMenu";
 import DatabaseSelector from "@/components/DatabaseSelector";
+import RelationshipDiagram from "@/components/RelationshipDiagram";
 import { cn } from "@/lib/utils";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
@@ -101,8 +101,6 @@ export default function DatabaseInterface() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [tables, setTables] = useState([]);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [executionTime, setExecutionTime] = useState(null);
   const [stats, setStats] = useState({ totalQueries: 0, successfulQueries: 0 });
   const [showHistory, setShowHistory] = useState(false);
@@ -148,13 +146,11 @@ export default function DatabaseInterface() {
 
   const executeQuery = async () => {
     if (!query.trim()) {
-      setError("Please enter a SQL query");
+      toast.error("Please enter a SQL query");
       return;
     }
 
     setLoading(true);
-    setError(null);
-    setSuccess(null);
     setResult(null);
     setExecutionTime(null);
 
@@ -170,20 +166,20 @@ export default function DatabaseInterface() {
       setExecutionTime(execTime);
 
       if (response.data.success) {
-        setSuccess(response.data.message);
+        toast.success(response.data.message);
         if (response.data.data) {
           setResult(response.data.data);
         }
         fetchTables();
         updateStats(true);
-        
+
         if (queryHistoryRef.current) {
           queryHistoryRef.current.addToHistory(query, true, execTime);
         }
       } else {
-        setError(response.data.error || "Query execution failed");
+        toast.error(response.data.error || "Query execution failed");
         updateStats(false);
-        
+
         if (queryHistoryRef.current) {
           queryHistoryRef.current.addToHistory(query, false, execTime);
         }
@@ -192,9 +188,9 @@ export default function DatabaseInterface() {
       const endTime = performance.now();
       const execTime = Math.round(endTime - startTime);
       setExecutionTime(execTime);
-      setError(err.response?.data?.error || err.message || "Failed to execute query");
+      toast.error(err.response?.data?.error || err.message || "Failed to execute query");
       updateStats(false);
-      
+
       if (queryHistoryRef.current) {
         queryHistoryRef.current.addToHistory(query, false, execTime);
       }
@@ -205,17 +201,15 @@ export default function DatabaseInterface() {
 
   const initializeDemoData = async () => {
     setLoading(true);
-    setError(null);
-    setSuccess(null);
 
     try {
       const response = await axios.post(`${API}/initialize-demo`, null, {
         params: { db: currentDatabase }
       });
-      setSuccess(response.data.message);
+      toast.success(response.data.message);
       fetchTables();
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to initialize demo data");
+      toast.error(err.response?.data?.detail || "Failed to initialize demo data");
     } finally {
       setLoading(false);
     }
@@ -230,11 +224,11 @@ export default function DatabaseInterface() {
       await axios.delete(`${API}/tables/${tableName}`, {
         params: { db: currentDatabase }
       });
-      setSuccess(`Table '${tableName}' dropped successfully`);
+      toast.success(`Table '${tableName}' dropped successfully`);
       fetchTables();
       setResult(null);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to drop table");
+      toast.error(err.response?.data?.detail || "Failed to drop table");
     }
   };
 
@@ -467,48 +461,6 @@ export default function DatabaseInterface() {
             </CardContent>
           </Card>
 
-          {/* Alerts */}
-          {error && (
-            <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2">
-              <XCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert className="border-green-500 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/20 animate-in fade-in slide-in-from-top-2">
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>{success}</AlertDescription>
-            </Alert>
-          )}
-
-          {/* Database Schema - Full Width Above Main Content */}
-          <Card className="border-primary/20 shadow-lg animate-in fade-in slide-in-from-top-4 duration-700 delay-150">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Database className="h-5 w-5 text-primary" />
-                    Database Schema
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-1">
-                    Visual representation of tables, columns, and relationships
-                  </CardDescription>
-                </div>
-                <Badge variant="outline" className="gap-2">
-                  <Table className="h-3 w-3" />
-                  {tables.length} {tables.length === 1 ? 'table' : 'tables'}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <SchemaVisualizer
-                currentDatabase={currentDatabase}
-                onGenerateQuery={handleSelectQuery}
-              />
-            </CardContent>
-          </Card>
-
           {/* Main Content - Query Editor & Examples Side by Side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Query Editor */}
@@ -631,13 +583,59 @@ export default function DatabaseInterface() {
                   Query Results
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Displaying {result.length} row{result.length !== 1 ? 's' : ''} 
+                  Displaying {result.length} row{result.length !== 1 ? 's' : ''}
                   {executionTime && ` • Executed in ${executionTime}ms`}
                 </CardDescription>
               </CardHeader>
               <CardContent>{renderTable(result)}</CardContent>
             </Card>
           )}
+
+          {/* Database Explorer - Schema and Relationships */}
+          <Card className="border-primary/20 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Database className="h-5 w-5 text-primary" />
+                    Database Explorer
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-1">
+                    Visual representation of tables, columns, and relationships
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="gap-2">
+                  <Table className="h-3 w-3" />
+                  {tables.length} {tables.length === 1 ? 'table' : 'tables'}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="schema" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="schema" className="gap-2">
+                    <Layers className="h-4 w-4" />
+                    Schema
+                  </TabsTrigger>
+                  <TabsTrigger value="relationships" className="gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Relationships
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="schema" className="mt-4">
+                  <SchemaVisualizer
+                    currentDatabase={currentDatabase}
+                    onGenerateQuery={handleSelectQuery}
+                  />
+                </TabsContent>
+                <TabsContent value="relationships" className="mt-4">
+                  <div className="h-[600px]">
+                    <RelationshipDiagram currentDatabase={currentDatabase} />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </TooltipProvider>

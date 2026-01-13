@@ -1,4 +1,139 @@
 {
   "name": "default",
-  "tables": {}
+  "tables": {
+    "users": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INT",
+          "is_primary_key": true,
+          "is_unique": false
+        },
+        {
+          "name": "email",
+          "type": "STRING",
+          "is_primary_key": false,
+          "is_unique": true
+        },
+        {
+          "name": "name",
+          "type": "STRING",
+          "is_primary_key": false,
+          "is_unique": false
+        },
+        {
+          "name": "is_active",
+          "type": "BOOL",
+          "is_primary_key": false,
+          "is_unique": false
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "email": "alice@example.com",
+          "name": "Alice Johnson",
+          "is_active": true
+        },
+        {
+          "id": 2,
+          "email": "bob@example.com",
+          "name": "Bob Smith",
+          "is_active": true
+        },
+        {
+          "id": 3,
+          "email": "carol@example.com",
+          "name": "Carol Williams",
+          "is_active": false
+        },
+        {
+          "id": 4,
+          "email": "david@example.com",
+          "name": "David Brown",
+          "is_active": true
+        },
+        {
+          "id": 5,
+          "email": "eve@example.com",
+          "name": "Eve Davis",
+          "is_active": true
+        }
+      ]
+    },
+    "orders": {
+      "columns": [
+        {
+          "name": "order_id",
+          "type": "INT",
+          "is_primary_key": true,
+          "is_unique": false
+        },
+        {
+          "name": "user_id",
+          "type": "INT",
+          "is_primary_key": false,
+          "is_unique": false,
+          "foreign_key_table": "users",
+          "foreign_key_column": "id"
+        },
+        {
+          "name": "amount",
+          "type": "INT",
+          "is_primary_key": false,
+          "is_unique": false
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "is_primary_key": false,
+          "is_unique": false
+        }
+      ],
+      "rows": [
+        {
+          "order_id": 101,
+          "user_id": 1,
+          "amount": 250,
+          "status": "completed"
+        },
+        {
+          "order_id": 102,
+          "user_id": 1,
+          "amount": 150,
+          "status": "pending"
+        },
+        {
+          "order_id": 103,
+          "user_id": 2,
+          "amount": 500,
+          "status": "completed"
+        },
+        {
+          "order_id": 104,
+          "user_id": 3,
+          "amount": 75,
+          "status": "cancelled"
+        },
+        {
+          "order_id": 105,
+          "user_id": 4,
+          "amount": 320,
+          "status": "completed"
+        },
+        {
+          "order_id": 106,
+          "user_id": 2,
+          "amount": 180,
+          "status": "pending"
+        },
+        {
+          "order_id": 107,
+          "user_id": 5,
+          "amount": 420,
+          "status": "completed"
+        }
+      ]
+    }
+  }
 }

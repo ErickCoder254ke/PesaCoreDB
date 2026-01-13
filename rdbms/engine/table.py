@@ -7,12 +7,14 @@ from .index import Index
 
 class ColumnDefinition:
     """Definition of a table column."""
-    
-    def __init__(self, name: str, data_type: DataType, is_primary_key: bool = False, is_unique: bool = False):
+
+    def __init__(self, name: str, data_type: DataType, is_primary_key: bool = False, is_unique: bool = False, foreign_key_table: Optional[str] = None, foreign_key_column: Optional[str] = None):
         self.name = name
         self.data_type = data_type
         self.is_primary_key = is_primary_key
         self.is_unique = is_unique
+        self.foreign_key_table = foreign_key_table
+        self.foreign_key_column = foreign_key_column
     
     def __repr__(self) -> str:
         flags = []
@@ -20,6 +22,8 @@ class ColumnDefinition:
             flags.append("PRIMARY KEY")
         if self.is_unique:
             flags.append("UNIQUE")
+        if self.foreign_key_table:
+            flags.append(f"REFERENCES {self.foreign_key_table}({self.foreign_key_column})")
         flag_str = " " + " ".join(flags) if flags else ""
         return f"{self.name} {self.data_type.value}{flag_str}"
 

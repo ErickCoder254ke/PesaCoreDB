@@ -389,6 +389,9 @@ async def get_table_info(table_name: str, db: str = "default"):
                 "is_primary_key": col.is_primary_key,
                 "is_unique": col.is_unique
             }
+            if col.foreign_key_table:
+                col_info["foreign_key_table"] = col.foreign_key_table
+                col_info["foreign_key_column"] = col.foreign_key_column
             columns_info.append(col_info)
         
         return {
@@ -430,6 +433,56 @@ async def drop_table(table_name: str, db: str = "default"):
         logger.error(f"Error dropping table: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.get("/relationships")
+async def get_relationships(db: str = "default"):
+    """Get all table relationships (foreign keys) in the database"""
+    try:
+        if not database_manager.database_exists(db):
+            raise HTTPException(status_code=404, detail=f"Database '{db}' does not exist")
+
+        logger.info(f"Fetching relationships for database: {db}")
+        database = database_manager.get_database(db)
+        tables = database.list_tables()
+
+        relationships = []
+        table_info = {}
+
+        # Gather all tables and their columns
+        for table_name in tables:
+            table = database.get_table(table_name)
+            table_info[table_name] = {
+                "columns": [{
+                    "name": col.name,
+                    "type": col.data_type.value,
+                    "is_primary_key": col.is_primary_key,
+                    "is_unique": col.is_unique,
+                    "foreign_key_table": col.foreign_key_table,
+                    "foreign_key_column": col.foreign_key_column
+                } for col in table.columns],
+                "row_count": len(table.rows)
+            }
+
+            # Extract relationships
+            for col in table.columns:
+                if col.foreign_key_table:
+                    relationships.append({
+                        "from_table": table_name,
+                        "from_column": col.name,
+                        "to_table": col.foreign_key_table,
+                        "to_column": col.foreign_key_column
+                    })
+
+        return {
+            "success": True,
+            "tables": table_info,
+            "relationships": relationships
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching relationships: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.post("/initialize-demo")
 async def initialize_demo_data(db: str = "default"):
     """Initialize the database with demo data"""
@@ -459,8 +512,8 @@ async def initialize_demo_data(db: str = "default"):
             command = parser.parse(tokens)
             executor.execute(command, db_name=db)
 
-        # Create orders table
-        orders_sql = "CREATE TABLE orders (order_id INT PRIMARY KEY, user_id INT, amount INT, status STRING)"
+        # Create orders table with foreign key to users
+        orders_sql = "CREATE TABLE orders (order_id INT PRIMARY KEY, user_id INT REFERENCES users(id), amount INT, status STRING)"
         tokens = tokenizer.tokenize(orders_sql)
         command = parser.parse(tokens)
         executor.execute(command, db_name=db)

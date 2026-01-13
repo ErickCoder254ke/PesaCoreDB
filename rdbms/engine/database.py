@@ -82,6 +82,9 @@ class Database:
                     'is_primary_key': col.is_primary_key,
                     'is_unique': col.is_unique
                 }
+                if col.foreign_key_table:
+                    col_data['foreign_key_table'] = col.foreign_key_table
+                    col_data['foreign_key_column'] = col.foreign_key_column
                 columns_data.append(col_data)
 
             # Serialize rows
@@ -127,7 +130,9 @@ class Database:
                     name=col_data['name'],
                     data_type=DataType.from_string(col_data['type']),
                     is_primary_key=col_data.get('is_primary_key', False),
-                    is_unique=col_data.get('is_unique', False)
+                    is_unique=col_data.get('is_unique', False),
+                    foreign_key_table=col_data.get('foreign_key_table'),
+                    foreign_key_column=col_data.get('foreign_key_column')
                 )
                 columns.append(col)
 

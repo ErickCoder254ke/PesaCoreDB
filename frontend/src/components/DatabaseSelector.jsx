@@ -30,13 +30,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "@/components/ui/sonner";
 import {
   Database,
   Plus,
   Trash2,
-  CheckCircle,
-  XCircle,
   Loader2,
   Info,
 } from "lucide-react";
@@ -52,8 +50,6 @@ export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [newDatabaseName, setNewDatabaseName] = useState("");
   const [databaseToDelete, setDatabaseToDelete] = useState(null);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [databaseInfo, setDatabaseInfo] = useState(null);
 
   useEffect(() => {
@@ -72,7 +68,7 @@ export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) 
       setDatabases(response.data.databases || []);
     } catch (err) {
       console.error("Failed to fetch databases:", err);
-      setError("Failed to load databases");
+      toast.error("Failed to load databases");
     }
   };
 
@@ -88,23 +84,21 @@ export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) 
 
   const handleCreateDatabase = async () => {
     if (!newDatabaseName.trim()) {
-      setError("Database name cannot be empty");
+      toast.error("Database name cannot be empty");
       return;
     }
 
     setLoading(true);
-    setError(null);
-    setSuccess(null);
 
     try {
       await axios.post(`${API}/databases`, { name: newDatabaseName.trim() });
-      setSuccess(`Database '${newDatabaseName}' created successfully`);
+      toast.success(`Database '${newDatabaseName}' created successfully`);
       setNewDatabaseName("");
       setCreateDialogOpen(false);
       await fetchDatabases();
       onDatabaseChange(newDatabaseName.trim());
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to create database");
+      toast.error(err.response?.data?.detail || "Failed to create database");
     } finally {
       setLoading(false);
     }
@@ -114,22 +108,20 @@ export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) 
     if (!databaseToDelete) return;
 
     setLoading(true);
-    setError(null);
-    setSuccess(null);
 
     try {
       await axios.delete(`${API}/databases/${databaseToDelete}`);
-      setSuccess(`Database '${databaseToDelete}' deleted successfully`);
+      toast.success(`Database '${databaseToDelete}' deleted successfully`);
       setDeleteDialogOpen(false);
       setDatabaseToDelete(null);
       await fetchDatabases();
-      
+
       // Switch to default if deleted current database
       if (currentDatabase === databaseToDelete) {
         onDatabaseChange("default");
       }
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to delete database");
+      toast.error(err.response?.data?.detail || "Failed to delete database");
     } finally {
       setLoading(false);
     }
@@ -142,21 +134,6 @@ export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) 
 
   return (
     <div className="database-selector-container">
-      {/* Alerts */}
-      {error && (
-        <Alert variant="destructive" className="mb-4 animate-in fade-in slide-in-from-top-2">
-          <XCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {success && (
-        <Alert className="mb-4 border-green-500 text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/20 animate-in fade-in slide-in-from-top-2">
-          <CheckCircle className="h-4 w-4" />
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
-
       {/* Database Selector */}
       <div className="database-selector-controls flex items-center gap-3">
         <div className="flex-1 min-w-[200px]">

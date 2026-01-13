@@ -174,7 +174,9 @@ class Parser:
             
             is_primary_key = False
             is_unique = False
-            
+            foreign_key_table = None
+            foreign_key_column = None
+
             # Check for PRIMARY KEY
             if self.peek() and self.peek().value == 'PRIMARY':
                 self.consume('PRIMARY')
@@ -184,8 +186,18 @@ class Parser:
             elif self.peek() and self.peek().value == 'UNIQUE':
                 self.consume('UNIQUE')
                 is_unique = True
-            
-            columns.append(ColumnDefinition(col_name, col_type, is_primary_key, is_unique))
+
+            # Check for REFERENCES (foreign key)
+            if self.peek() and self.peek().value == 'REFERENCES':
+                self.consume('REFERENCES')
+                fk_table_token = self.consume(expected_type='IDENTIFIER')
+                foreign_key_table = fk_table_token.value
+                self.consume('(')
+                fk_col_token = self.consume(expected_type='IDENTIFIER')
+                foreign_key_column = fk_col_token.value
+                self.consume(')')
+
+            columns.append(ColumnDefinition(col_name, col_type, is_primary_key, is_unique, foreign_key_table, foreign_key_column))
             
             next_token = self.peek()
             if next_token and next_token.value == ',':

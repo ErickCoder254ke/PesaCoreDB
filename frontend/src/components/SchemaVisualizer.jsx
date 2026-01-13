@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "@/components/ui/sonner";
 import {
   Accordion,
   AccordionContent,
@@ -38,12 +39,11 @@ export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }
   const [tableDetails, setTableDetails] = useState({});
   const [loading, setLoading] = useState(false);
   const [expandedTables, setExpandedTables] = useState([]);
-  
+
   // Table data viewing
   const [selectedTable, setSelectedTable] = useState(null);
   const [tableData, setTableData] = useState([]);
   const [loadingData, setLoadingData] = useState(false);
-  const [dataError, setDataError] = useState(null);
 
   useEffect(() => {
     if (currentDatabase) {
@@ -83,7 +83,6 @@ export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }
   const viewTableData = async (tableName) => {
     setSelectedTable(tableName);
     setLoadingData(true);
-    setDataError(null);
     setTableData([]);
 
     try {
@@ -95,10 +94,10 @@ export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }
       if (response.data.success && response.data.data) {
         setTableData(response.data.data);
       } else {
-        setDataError(response.data.error || "Failed to load table data");
+        toast.error(response.data.error || "Failed to load table data");
       }
     } catch (err) {
-      setDataError(err.response?.data?.error || err.message || "Failed to fetch table data");
+      toast.error(err.response?.data?.error || err.message || "Failed to fetch table data");
     } finally {
       setLoadingData(false);
     }
@@ -135,15 +134,6 @@ export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }
             <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             <p className="text-sm text-muted-foreground">Loading table data...</p>
           </div>
-        </div>
-      );
-    }
-
-    if (dataError) {
-      return (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <FileJson className="h-12 w-12 text-destructive mb-4" />
-          <p className="text-sm text-destructive">{dataError}</p>
         </div>
       );
     }
