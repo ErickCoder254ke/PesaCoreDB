@@ -33,7 +33,7 @@ import ExportMenu from "@/components/ExportMenu";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
 
-export function SchemaVisualizer({ onGenerateQuery, className }) {
+export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }) {
   const [tables, setTables] = useState([]);
   const [tableDetails, setTableDetails] = useState({});
   const [loading, setLoading] = useState(false);
@@ -46,13 +46,17 @@ export function SchemaVisualizer({ onGenerateQuery, className }) {
   const [dataError, setDataError] = useState(null);
 
   useEffect(() => {
-    fetchSchema();
-  }, []);
+    if (currentDatabase) {
+      fetchSchema();
+    }
+  }, [currentDatabase]);
 
   const fetchSchema = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API}/tables`);
+      const response = await axios.get(`${API}/tables`, {
+        params: { db: currentDatabase }
+      });
       const tableNames = response.data.tables || [];
       setTables(tableNames);
 
@@ -60,7 +64,9 @@ export function SchemaVisualizer({ onGenerateQuery, className }) {
       const details = {};
       for (const tableName of tableNames) {
         try {
-          const detailResponse = await axios.get(`${API}/tables/${tableName}`);
+          const detailResponse = await axios.get(`${API}/tables/${tableName}`, {
+            params: { db: currentDatabase }
+          });
           details[tableName] = detailResponse.data;
         } catch (err) {
           console.error(`Failed to fetch details for ${tableName}:`, err);
@@ -82,7 +88,8 @@ export function SchemaVisualizer({ onGenerateQuery, className }) {
 
     try {
       const response = await axios.post(`${API}/query`, {
-        sql: `SELECT * FROM ${tableName}`
+        sql: `SELECT * FROM ${tableName}`,
+        db: currentDatabase
       });
 
       if (response.data.success && response.data.data) {

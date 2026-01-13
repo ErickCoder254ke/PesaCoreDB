@@ -1,59 +1,79 @@
 """SQL executor for executing parsed commands."""
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Union
 from .parser import (
     ParsedCommand, CreateTableCommand, InsertCommand, SelectCommand,
     UpdateCommand, DeleteCommand
 )
-from ..engine import Database, Table
+from ..engine import Database, Table, DatabaseManager
 
 
 class Executor:
     """Executes parsed SQL commands against a database."""
-    
-    def __init__(self, database: Database):
-        """Initialize executor with a database.
-        
+
+    def __init__(self, database_or_manager: Union[Database, DatabaseManager]):
+        """Initialize executor with a database or database manager.
+
         Args:
-            database: Database instance to execute commands against
+            database_or_manager: Database instance or DatabaseManager
         """
-        self.database = database
-    
-    def execute(self, command: ParsedCommand) -> Any:
+        if isinstance(database_or_manager, DatabaseManager):
+            self.database_manager = database_or_manager
+            self.database = None  # Will be set per execute call
+        else:
+            self.database_manager = None
+            self.database = database_or_manager
+
+    def execute(self, command: ParsedCommand, db_name: Optional[str] = None) -> Any:
         """Execute a parsed command.
-        
+
         Args:
             command: Parsed command to execute
-        
+            db_name: Database name (required if using DatabaseManager)
+
         Returns:
             Execution result (varies by command type)
-        
+
         Raises:
-            ValueError: If execution fails
+            ValueError: If execution fails or db_name not provided with DatabaseManager
         """
+        # Get the database to execute against
+        if self.database_manager is not None:
+            if db_name is None:
+                raise ValueError("Database name must be provided when using DatabaseManager")
+            database = self.database_manager.get_database(db_name)
+        else:
+            database = self.database
+
+        # Execute command
         if isinstance(command, CreateTableCommand):
-            return self._execute_create_table(command)
+            return self._execute_create_table(command, database, db_name)
         elif isinstance(command, InsertCommand):
-            return self._execute_insert(command)
+            return self._execute_insert(command, database, db_name)
         elif isinstance(command, SelectCommand):
-            return self._execute_select(command)
+            return self._execute_select(command, database)
         elif isinstance(command, UpdateCommand):
-            return self._execute_update(command)
+            return self._execute_update(command, database, db_name)
         elif isinstance(command, DeleteCommand):
-            return self._execute_delete(command)
+            return self._execute_delete(command, database, db_name)
         else:
             raise ValueError(f"Unknown command type: {type(command)}")
     
-    def _execute_create_table(self, command: CreateTableCommand) -> str:
+    def _execute_create_table(self, command: CreateTableCommand, database: Database, db_name: Optional[str] = None) -> str:
         """Execute CREATE TABLE command."""
         table = Table(command.table_name, command.columns)
-        self.database.create_table(table)
+        database.create_table(table)
+
+        # Auto-save if using DatabaseManager
+        if self.database_manager is not None and db_name is not None:
+            self.database_manager.save_database(db_name)
+
         return f"Table '{command.table_name}' created successfully."
-    
-    def _execute_insert(self, command: InsertCommand) -> str:
+
+    def _execute_insert(self, command: InsertCommand, database: Database, db_name: Optional[str] = None) -> str:
         """Execute INSERT command."""
-        table = self.database.get_table(command.table_name)
-        
+        table = database.get_table(command.table_name)
+
         # Build column-value mapping
         column_names = table.get_column_names()
         if len(command.values) != len(column_names):
@@ -61,25 +81,29 @@ class Executor:
                 f"Value count mismatch: expected {len(column_names)} values for columns {column_names}, "
                 f"got {len(command.values)} values"
             )
-        
+
         values_dict = {col: val for col, val in zip(column_names, command.values)}
         table.insert(values_dict)
-        
+
+        # Auto-save if using DatabaseManager
+        if self.database_manager is not None and db_name is not None:
+            self.database_manager.save_database(db_name)
+
         return f"1 row inserted into '{command.table_name}'."
-    
-    def _execute_select(self, command: SelectCommand) -> List[Dict[str, Any]]:
+
+    def _execute_select(self, command: SelectCommand, database: Database) -> List[Dict[str, Any]]:
         """Execute SELECT command."""
         if command.join_table:
-            return self._execute_select_with_join(command)
+            return self._execute_select_with_join(command, database)
         else:
-            table = self.database.get_table(command.table_name)
+            table = database.get_table(command.table_name)
             return table.select(command.columns, command.where_col, command.where_val)
     
-    def _execute_select_with_join(self, command: SelectCommand) -> List[Dict[str, Any]]:
+    def _execute_select_with_join(self, command: SelectCommand, database: Database) -> List[Dict[str, Any]]:
         """Execute SELECT command with INNER JOIN."""
         # Get both tables
-        left_table = self.database.get_table(command.table_name)
-        right_table = self.database.get_table(command.join_table)
+        left_table = database.get_table(command.table_name)
+        right_table = database.get_table(command.join_table)
         
         # Parse join columns (format: table.column)
         left_join_parts = command.join_left_col.split('.')
@@ -149,14 +173,24 @@ class Executor:
         
         return result
     
-    def _execute_update(self, command: UpdateCommand) -> str:
+    def _execute_update(self, command: UpdateCommand, database: Database, db_name: Optional[str] = None) -> str:
         """Execute UPDATE command."""
-        table = self.database.get_table(command.table_name)
+        table = database.get_table(command.table_name)
         count = table.update(command.set_col, command.set_val, command.where_col, command.where_val)
+
+        # Auto-save if using DatabaseManager
+        if self.database_manager is not None and db_name is not None:
+            self.database_manager.save_database(db_name)
+
         return f"{count} row(s) updated in '{command.table_name}'."
     
-    def _execute_delete(self, command: DeleteCommand) -> str:
+    def _execute_delete(self, command: DeleteCommand, database: Database, db_name: Optional[str] = None) -> str:
         """Execute DELETE command."""
-        table = self.database.get_table(command.table_name)
+        table = database.get_table(command.table_name)
         count = table.delete(command.where_col, command.where_val)
+
+        # Auto-save if using DatabaseManager
+        if self.database_manager is not None and db_name is not None:
+            self.database_manager.save_database(db_name)
+
         return f"{count} row(s) deleted from '{command.table_name}'."

@@ -36,6 +36,7 @@ import { QueryHistory } from "@/components/QueryHistory";
 import SchemaVisualizer from "@/components/SchemaVisualizer";
 import SQLEditor from "@/components/SQLEditor";
 import ExportMenu from "@/components/ExportMenu";
+import DatabaseSelector from "@/components/DatabaseSelector";
 import { cn } from "@/lib/utils";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
@@ -93,6 +94,9 @@ const exampleQueries = [
 ];
 
 export default function DatabaseInterface() {
+  const [currentDatabase, setCurrentDatabase] = useState(() => {
+    return localStorage.getItem("current-database") || "default";
+  });
   const [query, setQuery] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -107,7 +111,15 @@ export default function DatabaseInterface() {
   useEffect(() => {
     fetchTables();
     loadStats();
-  }, []);
+  }, [currentDatabase]);
+
+  const handleDatabaseChange = (newDatabase) => {
+    setCurrentDatabase(newDatabase);
+    localStorage.setItem("current-database", newDatabase);
+    setResult(null);
+    setError(null);
+    setSuccess(null);
+  };
 
   const loadStats = () => {
     const savedStats = localStorage.getItem("query-stats");
@@ -125,7 +137,9 @@ export default function DatabaseInterface() {
 
   const fetchTables = async () => {
     try {
-      const response = await axios.get(`${API}/tables`);
+      const response = await axios.get(`${API}/tables`, {
+        params: { db: currentDatabase }
+      });
       setTables(response.data.tables || []);
     } catch (err) {
       console.error("Failed to fetch tables:", err);
@@ -147,7 +161,10 @@ export default function DatabaseInterface() {
     const startTime = performance.now();
 
     try {
-      const response = await axios.post(`${API}/query`, { sql: query });
+      const response = await axios.post(`${API}/query`, {
+        sql: query,
+        db: currentDatabase
+      });
       const endTime = performance.now();
       const execTime = Math.round(endTime - startTime);
       setExecutionTime(execTime);
@@ -192,7 +209,9 @@ export default function DatabaseInterface() {
     setSuccess(null);
 
     try {
-      const response = await axios.post(`${API}/initialize-demo`);
+      const response = await axios.post(`${API}/initialize-demo`, null, {
+        params: { db: currentDatabase }
+      });
       setSuccess(response.data.message);
       fetchTables();
     } catch (err) {
@@ -208,7 +227,9 @@ export default function DatabaseInterface() {
     }
 
     try {
-      await axios.delete(`${API}/tables/${tableName}`);
+      await axios.delete(`${API}/tables/${tableName}`, {
+        params: { db: currentDatabase }
+      });
       setSuccess(`Table '${tableName}' dropped successfully`);
       fetchTables();
       setResult(null);
@@ -393,8 +414,18 @@ export default function DatabaseInterface() {
             </div>
           </div>
 
-          {/* Stats Bar */}
+          {/* Database Selector */}
           <Card className="animate-in fade-in slide-in-from-top-4 duration-700 delay-100 border-primary/20">
+            <CardContent className="p-4">
+              <DatabaseSelector
+                currentDatabase={currentDatabase}
+                onDatabaseChange={handleDatabaseChange}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Stats Bar */}
+          <Card className="animate-in fade-in slide-in-from-top-4 duration-700 delay-150 border-primary/20">
             <CardContent className="p-4">
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4 md:gap-8 flex-wrap">
@@ -471,7 +502,10 @@ export default function DatabaseInterface() {
               </div>
             </CardHeader>
             <CardContent>
-              <SchemaVisualizer onGenerateQuery={handleSelectQuery} />
+              <SchemaVisualizer
+                currentDatabase={currentDatabase}
+                onGenerateQuery={handleSelectQuery}
+              />
             </CardContent>
           </Card>
 

@@ -15,7 +15,7 @@ from datetime import datetime
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from rdbms.engine import Database
+from rdbms.engine import Database, DatabaseManager
 from rdbms.sql import Tokenizer, Parser, Executor
 
 # Load environment variables
@@ -34,11 +34,16 @@ app = FastAPI(
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-# Initialize the custom RDBMS
-database = Database()
+# Initialize the custom RDBMS with DatabaseManager
+database_manager = DatabaseManager(data_dir="data")
 tokenizer = Tokenizer()
 parser = Parser()
-executor = Executor(database)
+executor = Executor(database_manager)
+
+# Create default database if it doesn't exist
+if not database_manager.database_exists('default'):
+    database_manager.create_database('default')
+    logger.info("Created default database")
 
 # Configure logging with enhanced formatting
 logging.basicConfig(
@@ -63,6 +68,10 @@ stats = {
 # Define Models
 class QueryRequest(BaseModel):
     sql: str
+    db: Optional[str] = "default"  # Database name, defaults to 'default'
+
+class CreateDatabaseRequest(BaseModel):
+    name: str
 
 class QueryResponse(BaseModel):
     success: bool
@@ -140,7 +149,7 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "database_tables": len(database.tables),
+        "databases": len(database_manager.list_databases()),
         "uptime": str(datetime.now() - datetime.fromisoformat(stats["server_start_time"]))
     }
 
@@ -149,18 +158,18 @@ async def get_stats():
     """Get server statistics"""
     uptime_delta = datetime.now() - datetime.fromisoformat(stats["server_start_time"])
     uptime_str = str(uptime_delta).split('.')[0]  # Remove microseconds
-    
+
     return ServerStats(
         total_queries=stats["total_queries"],
         successful_queries=stats["successful_queries"],
         failed_queries=stats["failed_queries"],
         success_rate=round(
-            (stats["successful_queries"] / stats["total_queries"] * 100) 
-            if stats["total_queries"] > 0 else 0, 
+            (stats["successful_queries"] / stats["total_queries"] * 100)
+            if stats["total_queries"] > 0 else 0,
             2
         ),
         average_execution_time=round(
-            (stats["total_execution_time"] / stats["total_queries"]) 
+            (stats["total_execution_time"] / stats["total_queries"])
             if stats["total_queries"] > 0 else 0,
             2
         ),
@@ -168,11 +177,94 @@ async def get_stats():
         server_start_time=stats["server_start_time"]
     )
 
+@api_router.get("/databases")
+async def list_databases():
+    """List all databases"""
+    try:
+        databases = database_manager.list_databases()
+        logger.info(f"Retrieved {len(databases)} databases")
+        return {
+            "success": True,
+            "databases": databases,
+            "total": len(databases)
+        }
+    except Exception as e:
+        logger.error(f"Failed to list databases: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/databases")
+async def create_database(request: CreateDatabaseRequest):
+    """Create a new database"""
+    try:
+        logger.info(f"Creating database: {request.name}")
+        database_manager.create_database(request.name)
+        logger.info(f"Database '{request.name}' created successfully")
+        return {
+            "success": True,
+            "message": f"Database '{request.name}' created successfully",
+            "database": request.name
+        }
+    except ValueError as e:
+        logger.warning(f"Cannot create database '{request.name}': {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating database: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.delete("/databases/{db_name}")
+async def delete_database(db_name: str):
+    """Delete a database"""
+    try:
+        # Prevent deletion of default database
+        if db_name == "default":
+            raise HTTPException(status_code=400, detail="Cannot delete the default database")
+
+        logger.info(f"Deleting database: {db_name}")
+        database_manager.drop_database(db_name)
+        logger.info(f"Database '{db_name}' deleted successfully")
+        return {
+            "success": True,
+            "message": f"Database '{db_name}' deleted successfully"
+        }
+    except ValueError as e:
+        logger.warning(f"Cannot delete database '{db_name}': {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting database: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/databases/{db_name}/info")
+async def get_database_info(db_name: str):
+    """Get information about a specific database"""
+    try:
+        if not database_manager.database_exists(db_name):
+            raise HTTPException(status_code=404, detail=f"Database '{db_name}' does not exist")
+
+        database = database_manager.get_database(db_name)
+        tables = database.list_tables()
+
+        # Count total rows across all tables
+        total_rows = sum(len(database.get_table(table).rows) for table in tables)
+
+        return {
+            "name": db_name,
+            "tables": tables,
+            "table_count": len(tables),
+            "total_rows": total_rows
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting database info: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.post("/query", response_model=QueryResponse)
 async def execute_query(request: QueryRequest):
     """
     Execute a SQL query against the custom RDBMS.
-    
+
     Supports:
     - CREATE TABLE
     - INSERT INTO
@@ -182,25 +274,31 @@ async def execute_query(request: QueryRequest):
     """
     start_time = time.time()
     stats["total_queries"] += 1
-    
+
     try:
-        logger.info(f"Executing query: {request.sql}")
-        
+        db_name = request.db or "default"
+        logger.info(f"Executing query on database '{db_name}': {request.sql}")
+
+        # Validate database exists
+        if not database_manager.database_exists(db_name):
+            stats["failed_queries"] += 1
+            raise HTTPException(status_code=404, detail=f"Database '{db_name}' does not exist")
+
         # Validate SQL input
         if not request.sql or not request.sql.strip():
             stats["failed_queries"] += 1
             raise HTTPException(status_code=400, detail="SQL query cannot be empty")
-        
+
         # Tokenize the SQL
         tokens = tokenizer.tokenize(request.sql)
         logger.debug(f"Tokens: {tokens}")
-        
+
         # Parse the tokens
         command = parser.parse(tokens)
         logger.debug(f"Parsed command: {command}")
-        
-        # Execute the command
-        result = executor.execute(command)
+
+        # Execute the command with database name
+        result = executor.execute(command, db_name=db_name)
         
         # Calculate execution time
         execution_time = (time.time() - start_time) * 1000  # Convert to milliseconds
@@ -251,24 +349,35 @@ async def execute_query(request: QueryRequest):
         )
 
 @api_router.get("/tables", response_model=DatabaseInfo)
-async def list_tables():
+async def list_tables(db: str = "default"):
     """List all tables in the database"""
     try:
+        if not database_manager.database_exists(db):
+            raise HTTPException(status_code=404, detail=f"Database '{db}' does not exist")
+
+        database = database_manager.get_database(db)
         tables = database.list_tables()
-        logger.info(f"Retrieved {len(tables)} tables")
+        logger.info(f"Retrieved {len(tables)} tables from database '{db}'")
         return DatabaseInfo(
             tables=tables,
             total_tables=len(tables)
         )
+    except ValueError as e:
+        logger.error(f"Failed to list tables: {str(e)}")
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to list tables: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/tables/{table_name}")
-async def get_table_info(table_name: str):
+async def get_table_info(table_name: str, db: str = "default"):
     """Get information about a specific table"""
     try:
-        logger.info(f"Fetching info for table: {table_name}")
+        if not database_manager.database_exists(db):
+            raise HTTPException(status_code=404, detail=f"Database '{db}' does not exist")
+
+        logger.info(f"Fetching info for table: {table_name} from database '{db}'")
+        database = database_manager.get_database(db)
         table = database.get_table(table_name)
         
         # Get column information
@@ -297,11 +406,18 @@ async def get_table_info(table_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.delete("/tables/{table_name}")
-async def drop_table(table_name: str):
+async def drop_table(table_name: str, db: str = "default"):
     """Drop a table from the database"""
     try:
-        logger.info(f"Dropping table: {table_name}")
+        if not database_manager.database_exists(db):
+            raise HTTPException(status_code=404, detail=f"Database '{db}' does not exist")
+
+        logger.info(f"Dropping table: {table_name} from database '{db}'")
+        database = database_manager.get_database(db)
         database.drop_table(table_name)
+
+        # Save database after dropping table
+        database_manager.save_database(db)
         logger.info(f"Table '{table_name}' dropped successfully")
         return {
             "success": True,
@@ -315,16 +431,19 @@ async def drop_table(table_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/initialize-demo")
-async def initialize_demo_data():
+async def initialize_demo_data(db: str = "default"):
     """Initialize the database with demo data"""
     try:
-        logger.info("Initializing demo data")
-        
+        if not database_manager.database_exists(db):
+            raise HTTPException(status_code=404, detail=f"Database '{db}' does not exist")
+
+        logger.info(f"Initializing demo data in database '{db}'")
+
         # Create users table
         users_sql = "CREATE TABLE users (id INT PRIMARY KEY, email STRING UNIQUE, name STRING, is_active BOOL)"
         tokens = tokenizer.tokenize(users_sql)
         command = parser.parse(tokens)
-        executor.execute(command)
+        executor.execute(command, db_name=db)
         
         # Insert demo users
         demo_users = [
@@ -338,14 +457,14 @@ async def initialize_demo_data():
         for sql in demo_users:
             tokens = tokenizer.tokenize(sql)
             command = parser.parse(tokens)
-            executor.execute(command)
-        
+            executor.execute(command, db_name=db)
+
         # Create orders table
         orders_sql = "CREATE TABLE orders (order_id INT PRIMARY KEY, user_id INT, amount INT, status STRING)"
         tokens = tokenizer.tokenize(orders_sql)
         command = parser.parse(tokens)
-        executor.execute(command)
-        
+        executor.execute(command, db_name=db)
+
         # Insert demo orders
         demo_orders = [
             "INSERT INTO orders VALUES (101, 1, 250, 'completed')",
@@ -356,11 +475,11 @@ async def initialize_demo_data():
             "INSERT INTO orders VALUES (106, 2, 180, 'pending')",
             "INSERT INTO orders VALUES (107, 5, 420, 'completed')"
         ]
-        
+
         for sql in demo_orders:
             tokens = tokenizer.tokenize(sql)
             command = parser.parse(tokens)
-            executor.execute(command)
+            executor.execute(command, db_name=db)
         
         logger.info("Demo data initialized successfully")
         
@@ -394,7 +513,8 @@ async def startup_event():
     logger.info("Custom RDBMS API Server Starting")
     logger.info("=" * 80)
     logger.info(f"Version: 2.0.0")
-    logger.info(f"Database initialized with {len(database.tables)} tables")
+    logger.info(f"Databases loaded: {len(database_manager.list_databases())}")
+    logger.info(f"Available databases: {', '.join(database_manager.list_databases())}")
     logger.info(f"Server start time: {stats['server_start_time']}")
     logger.info("=" * 80)
 
