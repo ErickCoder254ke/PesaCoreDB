@@ -1,0 +1,339 @@
+2026-01-13 11:28:36,989 - server - INFO - ================================================================================
+2026-01-13 11:28:36,990 - server - INFO - Custom RDBMS API Server Starting
+2026-01-13 11:28:36,990 - server - INFO - ================================================================================
+2026-01-13 11:28:36,991 - server - INFO - Version: 2.0.0
+2026-01-13 11:28:36,991 - server - INFO - Database initialized with 0 tables
+2026-01-13 11:28:36,991 - server - INFO - Server start time: 2026-01-13T11:28:36.963146
+2026-01-13 11:28:36,991 - server - INFO - ================================================================================
+2026-01-13 11:29:04,491 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:29:04,494 - server - INFO - Retrieved 0 tables
+2026-01-13 11:29:04,496 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.004s
+2026-01-13 11:29:04,500 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:29:04,501 - server - INFO - Retrieved 0 tables
+2026-01-13 11:29:04,502 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 11:29:04,507 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:29:04,507 - server - INFO - Retrieved 0 tables
+2026-01-13 11:29:04,508 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 11:29:04,515 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:29:04,516 - server - INFO - Retrieved 0 tables
+2026-01-13 11:29:04,517 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 11:29:38,838 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:29:38,841 - server - INFO - Executing query: CREATE TABLE users (id INT PRIMARY KEY, email STRING UNIQUE, name STRING, is_active BOOL)
+2026-01-13 11:29:38,841 - server - INFO - Query executed successfully in 0.88ms
+2026-01-13 11:29:38,842 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.004s
+2026-01-13 11:29:38,917 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:29:38,919 - server - INFO - Retrieved 1 tables
+2026-01-13 11:29:38,920 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 11:30:35,328 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:30:35,330 - server - INFO - Executing query: CREATE TABLE pese (id INT PRIMARY KEY, email STRING UNIQUE, name STRING, is_active BOOL)
+2026-01-13 11:30:35,330 - server - INFO - Query executed successfully in 0.68ms
+2026-01-13 11:30:35,331 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.003s
+2026-01-13 11:30:35,346 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:30:35,347 - server - INFO - Retrieved 2 tables
+2026-01-13 11:30:35,349 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 11:31:45,102 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:31:45,107 - server - INFO - Executing query: INSERT INTO pese VALUES (1, 'alice@example.com', 'Alice Johnson', TRUE)
+2026-01-13 11:31:45,108 - server - INFO - Query executed successfully in 0.98ms
+2026-01-13 11:31:45,109 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.007s
+2026-01-13 11:31:45,118 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:31:45,119 - server - INFO - Retrieved 2 tables
+2026-01-13 11:31:45,121 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 11:32:04,412 - server - INFO - Incoming request: POST /api/initialize-demo
+2026-01-13 11:32:04,413 - server - INFO - Initializing demo data
+2026-01-13 11:32:04,415 - server - ERROR - Failed to initialize demo data: Table 'users' already exists
+Traceback (most recent call last):
+  File "C:\Users\ADMIN\Desktop\PesaCoreDB-main\backend\server.py", line 327, in initialize_demo_data
+    executor.execute(command)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\ADMIN\Desktop\PesaCoreDB-main\rdbms\sql\executor.py", line 35, in execute
+    return self._execute_create_table(command)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\ADMIN\Desktop\PesaCoreDB-main\rdbms\sql\executor.py", line 50, in _execute_create_table
+    self.database.create_table(table)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\ADMIN\Desktop\PesaCoreDB-main\rdbms\engine\database.py", line 24, in create_table
+    raise ValueError(f"Table '{table.name}' already exists")
+ValueError: Table 'users' already exists
+2026-01-13 11:32:04,421 - server - INFO - Request completed: POST /api/initialize-demo Status: 400 Duration: 0.010s
+2026-01-13 11:32:19,721 - server - INFO - Incoming request: DELETE /api/tables/users
+2026-01-13 11:32:19,722 - server - INFO - Dropping table: users
+2026-01-13 11:32:19,723 - server - INFO - Table 'users' dropped successfully
+2026-01-13 11:32:19,724 - server - INFO - Request completed: DELETE /api/tables/users Status: 200 Duration: 0.003s
+2026-01-13 11:32:19,731 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:32:19,732 - server - INFO - Retrieved 1 tables
+2026-01-13 11:32:19,733 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 11:32:23,543 - server - INFO - Incoming request: POST /api/initialize-demo
+2026-01-13 11:32:23,544 - server - INFO - Initializing demo data
+2026-01-13 11:32:23,548 - server - INFO - Demo data initialized successfully
+2026-01-13 11:32:23,550 - server - INFO - Request completed: POST /api/initialize-demo Status: 200 Duration: 0.007s
+2026-01-13 11:32:23,634 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:32:23,635 - server - INFO - Retrieved 3 tables
+2026-01-13 11:32:23,640 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.006s
+2026-01-13 11:32:55,573 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:32:55,574 - server - INFO - Retrieved 3 tables
+2026-01-13 11:32:55,580 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.007s
+2026-01-13 11:32:55,599 - server - INFO - Incoming request: GET /api/tables/pese
+2026-01-13 11:32:55,601 - server - INFO - Fetching info for table: pese
+2026-01-13 11:32:55,602 - server - INFO - Request completed: GET /api/tables/pese Status: 200 Duration: 0.003s
+2026-01-13 11:32:55,667 - server - INFO - Incoming request: GET /api/tables/users
+2026-01-13 11:32:55,668 - server - INFO - Fetching info for table: users
+2026-01-13 11:32:55,671 - server - INFO - Request completed: GET /api/tables/users Status: 200 Duration: 0.004s
+2026-01-13 11:32:55,686 - server - INFO - Incoming request: GET /api/tables/orders
+2026-01-13 11:32:55,687 - server - INFO - Fetching info for table: orders
+2026-01-13 11:32:55,688 - server - INFO - Request completed: GET /api/tables/orders Status: 200 Duration: 0.002s
+2026-01-13 11:40:17,627 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:40:17,630 - server - INFO - Retrieved 3 tables
+2026-01-13 11:40:17,632 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.005s
+2026-01-13 11:40:17,637 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:40:17,639 - server - INFO - Retrieved 3 tables
+2026-01-13 11:40:17,643 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.006s
+2026-01-13 11:40:17,658 - server - INFO - Incoming request: GET /api/tables/pese
+2026-01-13 11:40:17,659 - server - INFO - Fetching info for table: pese
+2026-01-13 11:40:17,661 - server - INFO - Request completed: GET /api/tables/pese Status: 200 Duration: 0.003s
+2026-01-13 11:40:17,675 - server - INFO - Incoming request: GET /api/tables/pese
+2026-01-13 11:40:17,676 - server - INFO - Fetching info for table: pese
+2026-01-13 11:40:17,677 - server - INFO - Request completed: GET /api/tables/pese Status: 200 Duration: 0.002s
+2026-01-13 11:40:17,729 - server - INFO - Incoming request: GET /api/tables/users
+2026-01-13 11:40:17,730 - server - INFO - Fetching info for table: users
+2026-01-13 11:40:17,734 - server - INFO - Request completed: GET /api/tables/users Status: 200 Duration: 0.005s
+2026-01-13 11:40:17,739 - server - INFO - Incoming request: GET /api/tables/users
+2026-01-13 11:40:17,740 - server - INFO - Fetching info for table: users
+2026-01-13 11:40:17,741 - server - INFO - Request completed: GET /api/tables/users Status: 200 Duration: 0.003s
+2026-01-13 11:40:17,749 - server - INFO - Incoming request: GET /api/tables/orders
+2026-01-13 11:40:17,750 - server - INFO - Fetching info for table: orders
+2026-01-13 11:40:17,751 - server - INFO - Request completed: GET /api/tables/orders Status: 200 Duration: 0.002s
+2026-01-13 11:40:17,757 - server - INFO - Incoming request: GET /api/tables/orders
+2026-01-13 11:40:17,758 - server - INFO - Fetching info for table: orders
+2026-01-13 11:40:17,760 - server - INFO - Request completed: GET /api/tables/orders Status: 200 Duration: 0.003s
+2026-01-13 11:42:14,559 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:42:14,564 - server - INFO - Executing query: DROP TEBLE pese
+
+2026-01-13 11:42:14,566 - server - WARNING - Query execution failed: Unexpected command: DROP
+2026-01-13 11:42:14,568 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.009s
+2026-01-13 11:42:37,692 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:42:37,696 - server - INFO - Executing query: DROPE TEBLE pese
+
+2026-01-13 11:42:37,697 - server - WARNING - Query execution failed: Unexpected command: DROPE
+2026-01-13 11:42:37,698 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.007s
+2026-01-13 11:46:26,570 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:46:26,573 - server - INFO - Retrieved 3 tables
+2026-01-13 11:46:26,575 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.005s
+2026-01-13 11:46:26,585 - server - INFO - Incoming request: GET /api/tables/pese
+2026-01-13 11:46:26,587 - server - INFO - Fetching info for table: pese
+2026-01-13 11:46:26,588 - server - INFO - Request completed: GET /api/tables/pese Status: 200 Duration: 0.003s
+2026-01-13 11:46:26,631 - server - INFO - Incoming request: GET /api/tables/users
+2026-01-13 11:46:26,632 - server - INFO - Fetching info for table: users
+2026-01-13 11:46:26,634 - server - INFO - Request completed: GET /api/tables/users Status: 200 Duration: 0.003s
+2026-01-13 11:46:26,641 - server - INFO - Incoming request: GET /api/tables/orders
+2026-01-13 11:46:26,642 - server - INFO - Fetching info for table: orders
+2026-01-13 11:46:26,644 - server - INFO - Request completed: GET /api/tables/orders Status: 200 Duration: 0.002s
+2026-01-13 11:46:56,220 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:46:56,223 - server - INFO - Executing query: SELECT * FROM pese
+2026-01-13 11:46:56,226 - server - INFO - Query executed successfully in 2.76ms
+2026-01-13 11:46:56,227 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.007s
+2026-01-13 11:48:52,649 - server - INFO - Incoming request: POST /api/initialize-demo
+2026-01-13 11:48:52,650 - server - INFO - Initializing demo data
+2026-01-13 11:48:52,651 - server - ERROR - Failed to initialize demo data: Table 'users' already exists
+Traceback (most recent call last):
+  File "C:\Users\ADMIN\Desktop\PesaCoreDB-main\backend\server.py", line 327, in initialize_demo_data
+    executor.execute(command)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\ADMIN\Desktop\PesaCoreDB-main\rdbms\sql\executor.py", line 35, in execute
+    return self._execute_create_table(command)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\ADMIN\Desktop\PesaCoreDB-main\rdbms\sql\executor.py", line 50, in _execute_create_table
+    self.database.create_table(table)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\ADMIN\Desktop\PesaCoreDB-main\rdbms\engine\database.py", line 24, in create_table
+    raise ValueError(f"Table '{table.name}' already exists")
+ValueError: Table 'users' already exists
+2026-01-13 11:48:52,658 - server - INFO - Request completed: POST /api/initialize-demo Status: 400 Duration: 0.009s
+2026-01-13 11:49:55,192 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:49:55,194 - server - INFO - Executing query: CREATE TABLE sample (id INT PRIMARY KEY, email STRING UNIQUE, name STRING, is_active BOOL)
+2026-01-13 11:49:55,196 - server - INFO - Query executed successfully in 1.45ms
+2026-01-13 11:49:55,197 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.005s
+2026-01-13 11:49:55,204 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:49:55,205 - server - INFO - Retrieved 4 tables
+2026-01-13 11:49:55,208 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.004s
+2026-01-13 11:50:24,070 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:50:24,071 - server - INFO - Retrieved 4 tables
+2026-01-13 11:50:24,074 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 11:50:24,084 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:50:24,086 - server - INFO - Retrieved 4 tables
+2026-01-13 11:50:24,088 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.004s
+2026-01-13 11:50:24,094 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:50:24,095 - server - INFO - Retrieved 4 tables
+2026-01-13 11:50:24,096 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 11:50:24,111 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:50:24,112 - server - INFO - Retrieved 4 tables
+2026-01-13 11:50:24,113 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 11:50:24,199 - server - INFO - Incoming request: GET /api/tables/pese
+2026-01-13 11:50:24,209 - server - INFO - Fetching info for table: pese
+2026-01-13 11:50:24,211 - server - INFO - Request completed: GET /api/tables/pese Status: 200 Duration: 0.012s
+2026-01-13 11:50:24,221 - server - INFO - Incoming request: GET /api/tables/pese
+2026-01-13 11:50:24,224 - server - INFO - Fetching info for table: pese
+2026-01-13 11:50:24,227 - server - INFO - Request completed: GET /api/tables/pese Status: 200 Duration: 0.006s
+2026-01-13 11:50:24,552 - server - INFO - Incoming request: GET /api/tables/users
+2026-01-13 11:50:24,566 - server - INFO - Fetching info for table: users
+2026-01-13 11:50:24,568 - server - INFO - Request completed: GET /api/tables/users Status: 200 Duration: 0.016s
+2026-01-13 11:50:24,578 - server - INFO - Incoming request: GET /api/tables/users
+2026-01-13 11:50:24,580 - server - INFO - Fetching info for table: users
+2026-01-13 11:50:24,581 - server - INFO - Request completed: GET /api/tables/users Status: 200 Duration: 0.003s
+2026-01-13 11:50:27,452 - server - INFO - Incoming request: GET /api/tables/orders
+2026-01-13 11:50:27,454 - server - INFO - Fetching info for table: orders
+2026-01-13 11:50:27,457 - server - INFO - Request completed: GET /api/tables/orders Status: 200 Duration: 0.005s
+2026-01-13 11:50:27,474 - server - INFO - Incoming request: GET /api/tables/orders
+2026-01-13 11:50:27,475 - server - INFO - Fetching info for table: orders
+2026-01-13 11:50:27,477 - server - INFO - Request completed: GET /api/tables/orders Status: 200 Duration: 0.003s
+2026-01-13 11:50:27,708 - server - INFO - Incoming request: GET /api/tables/sample
+2026-01-13 11:50:27,713 - server - INFO - Fetching info for table: sample
+2026-01-13 11:50:27,717 - server - INFO - Request completed: GET /api/tables/sample Status: 200 Duration: 0.009s
+2026-01-13 11:50:27,725 - server - INFO - Incoming request: GET /api/tables/sample
+2026-01-13 11:50:27,728 - server - INFO - Fetching info for table: sample
+2026-01-13 11:50:27,730 - server - INFO - Request completed: GET /api/tables/sample Status: 200 Duration: 0.005s
+2026-01-13 11:50:38,748 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:50:38,750 - server - INFO - Executing query: SELECT * FROM sample
+2026-01-13 11:50:38,754 - server - INFO - Query executed successfully in 1.09ms
+2026-01-13 11:50:38,758 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.010s
+2026-01-13 11:51:09,387 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:51:09,392 - server - INFO - Executing query: INSERT INTO sample VALUES (1, 'alice@example.com', 'Alice Johnson', TRUE)
+2026-01-13 11:51:09,393 - server - INFO - Query executed successfully in 1.20ms
+2026-01-13 11:51:09,394 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.008s
+2026-01-13 11:51:09,482 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 11:51:09,483 - server - INFO - Retrieved 4 tables
+2026-01-13 11:51:09,487 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.004s
+2026-01-13 11:51:17,788 - server - INFO - Incoming request: POST /api/query
+2026-01-13 11:51:17,790 - server - INFO - Executing query: SELECT * FROM sample
+2026-01-13 11:51:17,790 - server - INFO - Query executed successfully in 0.59ms
+2026-01-13 11:51:17,792 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.004s
+2026-01-13 11:57:10,888 - server - INFO - ================================================================================
+2026-01-13 11:57:10,889 - server - INFO - Custom RDBMS API Server Shutting Down
+2026-01-13 11:57:10,890 - server - INFO - Total queries processed: 10
+2026-01-13 11:57:10,891 - server - INFO - Successful queries: 8
+2026-01-13 11:57:10,891 - server - INFO - Failed queries: 2
+2026-01-13 11:57:10,892 - server - INFO - ================================================================================
+2026-01-13 11:57:12,410 - server - INFO - ================================================================================
+2026-01-13 11:57:12,411 - server - INFO - Custom RDBMS API Server Starting
+2026-01-13 11:57:12,412 - server - INFO - ================================================================================
+2026-01-13 11:57:12,412 - server - INFO - Version: 2.0.0
+2026-01-13 11:57:12,413 - server - INFO - Database initialized with 0 tables
+2026-01-13 11:57:12,414 - server - INFO - Server start time: 2026-01-13T11:57:12.381656
+2026-01-13 11:57:12,415 - server - INFO - ================================================================================
+2026-01-13 12:04:16,392 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:04:16,395 - server - INFO - Retrieved 0 tables
+2026-01-13 12:04:16,398 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.005s
+2026-01-13 12:04:16,407 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:04:16,408 - server - INFO - Retrieved 0 tables
+2026-01-13 12:04:16,409 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:04:16,414 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:04:16,414 - server - INFO - Retrieved 0 tables
+2026-01-13 12:04:16,419 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.005s
+2026-01-13 12:04:16,424 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:04:16,425 - server - INFO - Retrieved 0 tables
+2026-01-13 12:04:16,426 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:05:46,206 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:05:46,216 - server - INFO - Retrieved 0 tables
+2026-01-13 12:05:46,218 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.012s
+2026-01-13 12:05:46,234 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:05:46,234 - server - INFO - Retrieved 0 tables
+2026-01-13 12:05:46,235 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:05:46,253 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:05:46,254 - server - INFO - Retrieved 0 tables
+2026-01-13 12:05:46,255 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:05:46,270 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:05:46,271 - server - INFO - Retrieved 0 tables
+2026-01-13 12:05:46,271 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:06:48,732 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:06:48,734 - server - INFO - Retrieved 0 tables
+2026-01-13 12:06:48,737 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.005s
+2026-01-13 12:06:48,743 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:06:48,744 - server - INFO - Retrieved 0 tables
+2026-01-13 12:06:48,745 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:06:48,749 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:06:48,750 - server - INFO - Retrieved 0 tables
+2026-01-13 12:06:48,751 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:06:48,758 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:06:48,759 - server - INFO - Retrieved 0 tables
+2026-01-13 12:06:48,761 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:07:28,409 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:07:28,410 - server - INFO - Retrieved 0 tables
+2026-01-13 12:07:28,413 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.004s
+2026-01-13 12:07:35,738 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:07:35,739 - server - INFO - Retrieved 0 tables
+2026-01-13 12:07:35,742 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:07:41,630 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:07:41,633 - server - INFO - Retrieved 0 tables
+2026-01-13 12:07:41,635 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.005s
+2026-01-13 12:07:44,304 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:07:44,305 - server - INFO - Retrieved 0 tables
+2026-01-13 12:07:44,308 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.004s
+2026-01-13 12:07:44,321 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:07:44,322 - server - INFO - Retrieved 0 tables
+2026-01-13 12:07:44,324 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:07:44,328 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:07:44,329 - server - INFO - Retrieved 0 tables
+2026-01-13 12:07:44,331 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:07:44,356 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:07:44,357 - server - INFO - Retrieved 0 tables
+2026-01-13 12:07:44,359 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:07:58,450 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:07:58,451 - server - INFO - Retrieved 0 tables
+2026-01-13 12:07:58,453 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:08:25,798 - server - INFO - ================================================================================
+2026-01-13 12:08:25,799 - server - INFO - Custom RDBMS API Server Starting
+2026-01-13 12:08:25,800 - server - INFO - ================================================================================
+2026-01-13 12:08:25,800 - server - INFO - Version: 2.0.0
+2026-01-13 12:08:25,800 - server - INFO - Database initialized with 0 tables
+2026-01-13 12:08:25,800 - server - INFO - Server start time: 2026-01-13T12:08:25.783663
+2026-01-13 12:08:25,801 - server - INFO - ================================================================================
+2026-01-13 12:08:45,059 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:08:45,075 - server - INFO - Retrieved 0 tables
+2026-01-13 12:08:45,079 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.020s
+2026-01-13 12:08:45,373 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:08:45,379 - server - INFO - Retrieved 0 tables
+2026-01-13 12:08:45,382 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.009s
+2026-01-13 12:08:45,393 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:08:45,401 - server - INFO - Retrieved 0 tables
+2026-01-13 12:08:45,403 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.010s
+2026-01-13 12:08:45,435 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:08:45,437 - server - INFO - Retrieved 0 tables
+2026-01-13 12:08:45,438 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.004s
+2026-01-13 12:12:27,594 - server - INFO - Incoming request: POST /api/initialize-demo
+2026-01-13 12:12:27,597 - server - INFO - Initializing demo data
+2026-01-13 12:12:27,601 - server - INFO - Demo data initialized successfully
+2026-01-13 12:12:27,603 - server - INFO - Request completed: POST /api/initialize-demo Status: 200 Duration: 0.009s
+2026-01-13 12:12:27,615 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:12:27,616 - server - INFO - Retrieved 2 tables
+2026-01-13 12:12:27,618 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:12:52,378 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:12:52,379 - server - INFO - Retrieved 2 tables
+2026-01-13 12:12:52,382 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.004s
+2026-01-13 12:12:52,396 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:12:52,397 - server - INFO - Retrieved 2 tables
+2026-01-13 12:12:52,399 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:12:52,417 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:12:52,419 - server - INFO - Retrieved 2 tables
+2026-01-13 12:12:52,420 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.003s
+2026-01-13 12:12:52,440 - server - INFO - Incoming request: GET /api/tables
+2026-01-13 12:12:52,441 - server - INFO - Retrieved 2 tables
+2026-01-13 12:12:52,442 - server - INFO - Request completed: GET /api/tables Status: 200 Duration: 0.002s
+2026-01-13 12:12:52,563 - server - INFO - Incoming request: GET /api/tables/users
+2026-01-13 12:12:52,565 - server - INFO - Fetching info for table: users
+2026-01-13 12:12:52,567 - server - INFO - Request completed: GET /api/tables/users Status: 200 Duration: 0.004s
+2026-01-13 12:12:52,577 - server - INFO - Incoming request: GET /api/tables/users
+2026-01-13 12:12:52,578 - server - INFO - Fetching info for table: users
+2026-01-13 12:12:52,580 - server - INFO - Request completed: GET /api/tables/users Status: 200 Duration: 0.003s
+2026-01-13 12:12:52,759 - server - INFO - Incoming request: GET /api/tables/orders
+2026-01-13 12:12:52,768 - server - INFO - Fetching info for table: orders
+2026-01-13 12:12:52,775 - server - INFO - Request completed: GET /api/tables/orders Status: 200 Duration: 0.016s
+2026-01-13 12:12:52,785 - server - INFO - Incoming request: GET /api/tables/orders
+2026-01-13 12:12:52,786 - server - INFO - Fetching info for table: orders
+2026-01-13 12:12:52,790 - server - INFO - Request completed: GET /api/tables/orders Status: 200 Duration: 0.005s
+2026-01-13 12:13:03,197 - server - INFO - Incoming request: POST /api/query
+2026-01-13 12:13:03,200 - server - INFO - Executing query: SELECT * FROM users
+2026-01-13 12:13:03,201 - server - INFO - Query executed successfully in 0.60ms
+2026-01-13 12:13:03,202 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.004s
+2026-01-13 12:13:41,671 - server - INFO - Incoming request: POST /api/query
+2026-01-13 12:13:41,673 - server - INFO - Executing query: SELECT * FROM orders
+2026-01-13 12:13:41,674 - server - INFO - Query executed successfully in 0.64ms
+2026-01-13 12:13:41,675 - server - INFO - Request completed: POST /api/query Status: 200 Duration: 0.004s
