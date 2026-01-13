@@ -37,6 +37,7 @@ import SQLEditor from "@/components/SQLEditor";
 import ExportMenu from "@/components/ExportMenu";
 import DatabaseSelector from "@/components/DatabaseSelector";
 import RelationshipDiagram from "@/components/RelationshipDiagram";
+import SQLAssistant from "@/components/SQLAssistant";
 import { cn } from "@/lib/utils";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
@@ -369,7 +370,7 @@ export default function DatabaseInterface() {
               </div>
               <div>
                 <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  Custom RDBMS
+                  PesacodeDB
                 </h1>
                 <p className="text-xs md:text-sm text-muted-foreground">
                   Relational Database Management System
@@ -461,11 +462,11 @@ export default function DatabaseInterface() {
             </CardContent>
           </Card>
 
-          {/* Main Content - Query Editor & Examples Side by Side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Query Editor */}
-            <Card className="border-primary/20 shadow-lg animate-in fade-in slide-in-from-left-4 duration-700 delay-200">
-              <CardHeader>
+          {/* Main Content - 3 Column Layout: SQL Editor, AI Assistant, Query Templates */}
+          <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr] gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
+            {/* Column 1: SQL Editor */}
+            <Card className="border-primary/20 shadow-lg h-[350px] lg:h-[400px] flex flex-col">
+              <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Code2 className="h-5 w-5 text-primary" />
                   SQL Editor
@@ -474,13 +475,16 @@ export default function DatabaseInterface() {
                   Write and execute your SQL queries
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <SQLEditor
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Enter SQL query (e.g., SELECT * FROM users)&#10;&#10;Shortcuts:&#10;• Ctrl/Cmd + Enter to execute&#10;• Tab for indentation"
-                  onExecute={executeQuery}
-                />
+              <CardContent className="flex-1 flex flex-col gap-4 overflow-hidden">
+                <div className="flex-1 overflow-hidden">
+                  <SQLEditor
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Enter SQL query (e.g., SELECT * FROM users)&#10;&#10;Shortcuts:&#10;• Ctrl/Cmd + Enter to execute&#10;• Tab for indentation"
+                    onExecute={executeQuery}
+                    className="h-full"
+                  />
+                </div>
                 <div className="flex gap-2">
                   <Button
                     onClick={executeQuery}
@@ -511,15 +515,26 @@ export default function DatabaseInterface() {
               </CardContent>
             </Card>
 
-            {/* Query History or Example Queries */}
+            {/* Column 2: AI Assistant */}
+            <div className="h-[350px] lg:h-[400px]">
+              <SQLAssistant
+                tables={tables}
+                onInsertQuery={handleSelectQuery}
+                currentDatabase={currentDatabase}
+                className="h-full"
+              />
+            </div>
+
+            {/* Column 3: Query Templates or History */}
             {showHistory ? (
               <QueryHistory
                 ref={queryHistoryRef}
                 onSelectQuery={handleSelectQuery}
+                className="h-[350px] lg:h-[400px]"
               />
             ) : (
-              <Card className="border-primary/20 shadow-lg animate-in fade-in slide-in-from-right-4 duration-700 delay-200">
-                <CardHeader>
+              <Card className="border-primary/20 shadow-lg h-[350px] lg:h-[400px] flex flex-col">
+                <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <BookOpen className="h-5 w-5 text-primary" />
                     Query Templates
@@ -528,17 +543,17 @@ export default function DatabaseInterface() {
                     Click any template to load into the editor
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <Tabs defaultValue="all" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
+                <CardContent className="flex-1 overflow-hidden p-0">
+                  <Tabs defaultValue="all" className="w-full h-full flex flex-col">
+                    <TabsList className="grid w-full grid-cols-4 mx-4">
                       <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
                       <TabsTrigger value="DQL" className="text-xs">DQL</TabsTrigger>
                       <TabsTrigger value="DML" className="text-xs">DML</TabsTrigger>
                       <TabsTrigger value="DDL" className="text-xs">DDL</TabsTrigger>
                     </TabsList>
                     {["all", "DQL", "DML", "DDL"].map((category) => (
-                      <TabsContent key={category} value={category} className="space-y-2 mt-4">
-                        <ScrollArea className="h-[380px]">
+                      <TabsContent key={category} value={category} className="flex-1 overflow-hidden mt-2 px-4 pb-4">
+                        <ScrollArea className="h-full">
                           <div className="space-y-2 pr-4">
                             {exampleQueries
                               .filter((ex) => category === "all" || ex.category === category)

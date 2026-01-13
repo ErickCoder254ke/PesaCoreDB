@@ -24,8 +24,8 @@ load_dotenv(ENV_DIR / '.env')
 
 # Create the main app without a prefix
 app = FastAPI(
-    title="Custom RDBMS API",
-    description="REST API for custom relational database built from scratch",
+    title="PesacodeDB API",
+    description="REST API for PesacodeDB relational database built from scratch",
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -136,7 +136,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def root():
     """Root endpoint - API information"""
     return {
-        "message": "Custom RDBMS API",
+        "message": "PesacodeDB API",
         "version": "2.0.0",
         "description": "A relational database management system built from scratch",
         "documentation": "/docs",
@@ -563,7 +563,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     logger.info("=" * 80)
-    logger.info("Custom RDBMS API Server Starting")
+    logger.info("PesacodeDB API Server Starting")
     logger.info("=" * 80)
     logger.info(f"Version: 2.0.0")
     logger.info(f"Databases loaded: {len(database_manager.list_databases())}")
@@ -574,7 +574,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("=" * 80)
-    logger.info("Custom RDBMS API Server Shutting Down")
+    logger.info("PesacodeDB API Server Shutting Down")
     logger.info(f"Total queries processed: {stats['total_queries']}")
     logger.info(f"Successful queries: {stats['successful_queries']}")
     logger.info(f"Failed queries: {stats['failed_queries']}")

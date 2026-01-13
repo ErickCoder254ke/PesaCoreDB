@@ -76,7 +76,7 @@ export function SQLEditor({ value, onChange, placeholder, className, onExecute }
   };
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("relative h-full", className)}>
       <Textarea
         ref={textareaRef}
         value={value}
@@ -84,7 +84,7 @@ export function SQLEditor({ value, onChange, placeholder, className, onExecute }
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={cn(
-          "min-h-32 font-mono text-sm resize-none",
+          "h-full min-h-32 font-mono text-sm resize-none",
           "bg-background/50 backdrop-blur-sm",
           "focus-visible:ring-2 focus-visible:ring-primary/50",
           "transition-all duration-200"

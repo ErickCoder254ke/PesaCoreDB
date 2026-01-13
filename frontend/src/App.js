@@ -6,7 +6,7 @@ import DatabaseInterface from "@/components/DatabaseInterface";
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="rdbms-theme">
+    <ThemeProvider defaultTheme="dark" storageKey="pesacodedb-theme">
       <div className="App">
         <BrowserRouter>
           <Routes>
