@@ -1,5 +1,68 @@
 # 🌐 Hosting Guide for PesacodeDB
 
+## 🚨 URGENT: Fix Deployment Error First
+
+**Are you getting this error on Render?**
+```
+error Your lockfile needs to be updated, but yarn was run with `--frozen-lockfile`
+warning package-lock.json found... advised not to mix package managers
+```
+
+**Quick Fix (Choose One):**
+
+### Option A: Run the Fix Script (Easiest)
+
+**On Windows:**
+```bash
+DELETE_YARN_LOCK.bat
+```
+
+**On Linux/Mac:**
+```bash
+chmod +x delete-yarn-lock.sh
+./delete-yarn-lock.sh
+```
+
+Then commit and push:
+```bash
+git commit -m "Fix deployment: remove yarn.lock, use npm only"
+git push
+```
+
+### Option B: Manual Fix
+
+Run these commands:
+
+```bash
+# Navigate to frontend
+cd frontend
+
+# Delete yarn.lock (THIS IS CRITICAL!)
+rm yarn.lock
+# On Windows: del yarn.lock
+
+# Delete old package-lock.json
+rm package-lock.json
+# On Windows: del package-lock.json
+
+# Install with npm
+npm install --legacy-peer-deps
+
+# Go back to root
+cd ..
+
+# Commit ALL changes
+git add frontend/
+git commit -m "Fix deployment: remove yarn.lock, use npm only"
+
+# Push to trigger redeployment
+git push
+```
+
+**✅ After pushing, Render will automatically redeploy using npm!**
+
+---
+
 ## 📊 Architecture Overview
 
 Your PesacodeDB application consists of three interconnected components:
