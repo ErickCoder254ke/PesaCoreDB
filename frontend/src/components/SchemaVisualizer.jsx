@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import apiClient from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,8 +31,6 @@ import { Database, Table2, Key, Link2, RefreshCw, Eye, Layers, Hash, FileJson } 
 import { cn } from "@/lib/utils";
 import ExportMenu from "@/components/ExportMenu";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
-const API = `${BACKEND_URL}/api`;
 
 export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }) {
   const [tables, setTables] = useState([]);
@@ -54,7 +52,7 @@ export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }
   const fetchSchema = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API}/tables`, {
+      const response = await apiClient.get('/tables', {
         params: { db: currentDatabase }
       });
       const tableNames = response.data.tables || [];
@@ -64,7 +62,7 @@ export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }
       const details = {};
       for (const tableName of tableNames) {
         try {
-          const detailResponse = await axios.get(`${API}/tables/${tableName}`, {
+          const detailResponse = await apiClient.get(`/tables/${tableName}`, {
             params: { db: currentDatabase }
           });
           details[tableName] = detailResponse.data;
@@ -86,7 +84,7 @@ export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }
     setTableData([]);
 
     try {
-      const response = await axios.post(`${API}/query`, {
+      const response = await apiClient.post('/query', {
         sql: `SELECT * FROM ${tableName}`,
         db: currentDatabase
       });

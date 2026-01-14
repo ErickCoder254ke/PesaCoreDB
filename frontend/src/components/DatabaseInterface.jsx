@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import apiClient from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,9 +40,6 @@ import RelationshipDiagram from "@/components/RelationshipDiagram";
 import SQLAssistant from "@/components/SQLAssistant";
 import { cn } from "@/lib/utils";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
-const API = `${BACKEND_URL}/api`;
 
 const exampleQueries = [
   {
@@ -146,7 +143,7 @@ export default function DatabaseInterface() {
 
   const fetchTables = async () => {
     try {
-      const response = await axios.get(`${API}/tables`, {
+      const response = await apiClient.get('/tables', {
         params: { db: currentDatabase }
       });
       setTables(response.data.tables || []);
@@ -168,7 +165,7 @@ export default function DatabaseInterface() {
     const startTime = performance.now();
 
     try {
-      const response = await axios.post(`${API}/query`, {
+      const response = await apiClient.post('/query', {
         sql: query,
         db: currentDatabase
       });
@@ -214,7 +211,7 @@ export default function DatabaseInterface() {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API}/initialize-demo`, null, {
+      const response = await apiClient.post('/initialize-demo', null, {
         params: { db: currentDatabase }
       });
       toast.success(response.data.message);

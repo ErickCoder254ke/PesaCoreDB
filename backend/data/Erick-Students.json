@@ -37,6 +37,35 @@
         }
       ]
     },
+    "users3": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "INT",
+          "is_primary_key": true,
+          "is_unique": false
+        },
+        {
+          "name": "email",
+          "type": "STRING",
+          "is_primary_key": false,
+          "is_unique": true
+        },
+        {
+          "name": "name",
+          "type": "STRING",
+          "is_primary_key": false,
+          "is_unique": false
+        },
+        {
+          "name": "is_active",
+          "type": "BOOL",
+          "is_primary_key": false,
+          "is_unique": false
+        }
+      ],
+      "rows": []
+    },
     "users": {
       "columns": [
         {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import apiClient from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +9,6 @@ import { toast } from "@/components/ui/sonner";
 import { Database, RefreshCw, ZoomIn, ZoomOut, Maximize2, Key, Link2, Table2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
-const API = `${BACKEND_URL}/api`;
 
 export function RelationshipDiagram({ currentDatabase, className }) {
   const [tables, setTables] = useState({});
@@ -47,7 +45,7 @@ export function RelationshipDiagram({ currentDatabase, className }) {
   const fetchRelationships = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API}/relationships`, {
+      const response = await apiClient.get('/relationships', {
         params: { db: currentDatabase }
       });
 

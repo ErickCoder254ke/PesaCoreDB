@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from rdbms.engine import Database, DatabaseManager
 from rdbms.sql import Tokenizer, Parser, Executor
+from rdbms.connection import connect, parse_connection_url
 
 # Load environment variables
 ENV_DIR = Path(__file__).parent
@@ -35,15 +36,26 @@ app = FastAPI(
 api_router = APIRouter(prefix="/api")
 
 # Initialize the custom RDBMS with DatabaseManager
-database_manager = DatabaseManager(data_dir="data")
+# Support pesadb:// connection URL from environment or use default
+PESADB_URL = os.getenv("PESADB_URL", "pesadb://localhost/default")
+
+try:
+    # Parse and connect using pesadb:// URL
+    connection = connect(PESADB_URL)
+    database_manager = connection.get_database_manager()
+    default_database = connection.get_database_name()
+
+    print(f"✅ Connected to PesaDB: {PESADB_URL}")
+    print(f"   Default database: {default_database}")
+except ValueError as e:
+    print(f"❌ Failed to connect to database: {e}")
+    print(f"   Invalid PESADB_URL: {PESADB_URL}")
+    print("   Expected format: pesadb://localhost/database_name")
+    raise
+
 tokenizer = Tokenizer()
 parser = Parser()
 executor = Executor(database_manager)
-
-# Create default database if it doesn't exist
-if not database_manager.database_exists('default'):
-    database_manager.create_database('default')
-    logger.info("Created default database")
 
 # Configure logging with enhanced formatting
 logging.basicConfig(
@@ -93,26 +105,71 @@ class ServerStats(BaseModel):
     uptime: str
     server_start_time: str
 
+# Security Configuration
+API_KEY = os.getenv("API_KEY", "")
+REQUIRE_API_KEY = os.getenv("REQUIRE_API_KEY", "true").lower() == "true"
+
+# Public endpoints that don't require authentication
+PUBLIC_ENDPOINTS = ["/docs", "/redoc", "/openapi.json"]
+
+# Middleware for API key authentication
+@app.middleware("http")
+async def verify_api_key(request: Request, call_next):
+    # Skip authentication for public endpoints
+    if any(request.url.path.startswith(endpoint) for endpoint in PUBLIC_ENDPOINTS):
+        return await call_next(request)
+
+    # Skip authentication if not required (for local development)
+    if not REQUIRE_API_KEY:
+        logger.warning("⚠️ API key authentication is DISABLED - not recommended for production!")
+        return await call_next(request)
+
+    # Check for API key in header
+    api_key = request.headers.get("X-API-Key") or request.headers.get("x-api-key")
+
+    if not API_KEY:
+        logger.error("❌ API_KEY not configured in environment variables!")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": "Server configuration error: API key not set"
+            }
+        )
+
+    if api_key != API_KEY:
+        logger.warning(f"⚠️ Unauthorized access attempt from {request.client.host}")
+        return JSONResponse(
+            status_code=403,
+            content={
+                "success": False,
+                "error": "Unauthorized: Invalid or missing API key. Include 'X-API-Key' header."
+            }
+        )
+
+    # API key is valid, proceed with request
+    return await call_next(request)
+
 # Middleware for request logging and timing
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
-    
+
     # Log incoming request
     logger.info(f"Incoming request: {request.method} {request.url.path}")
-    
+
     try:
         response = await call_next(request)
-        
+
         # Calculate request duration
         duration = time.time() - start_time
-        
+
         # Log response
         logger.info(
             f"Request completed: {request.method} {request.url.path} "
             f"Status: {response.status_code} Duration: {duration:.3f}s"
         )
-        
+
         return response
     except Exception as e:
         logger.error(f"Request failed: {request.method} {request.url.path} Error: {str(e)}")
@@ -297,8 +354,11 @@ async def execute_query(request: QueryRequest):
         command = parser.parse(tokens)
         logger.debug(f"Parsed command: {command}")
 
-        # Execute the command with database name
-        result = executor.execute(command, db_name=db_name)
+        # Set the current database context for the executor
+        executor.current_database = db_name
+
+        # Execute the command
+        result = executor.execute(command)
         
         # Calculate execution time
         execution_time = (time.time() - start_time) * 1000  # Convert to milliseconds
@@ -492,11 +552,14 @@ async def initialize_demo_data(db: str = "default"):
 
         logger.info(f"Initializing demo data in database '{db}'")
 
+        # Set the current database context for the executor
+        executor.current_database = db
+
         # Create users table
         users_sql = "CREATE TABLE users (id INT PRIMARY KEY, email STRING UNIQUE, name STRING, is_active BOOL)"
         tokens = tokenizer.tokenize(users_sql)
         command = parser.parse(tokens)
-        executor.execute(command, db_name=db)
+        executor.execute(command)
         
         # Insert demo users
         demo_users = [
@@ -510,13 +573,13 @@ async def initialize_demo_data(db: str = "default"):
         for sql in demo_users:
             tokens = tokenizer.tokenize(sql)
             command = parser.parse(tokens)
-            executor.execute(command, db_name=db)
+            executor.execute(command)
 
         # Create orders table with foreign key to users
         orders_sql = "CREATE TABLE orders (order_id INT PRIMARY KEY, user_id INT REFERENCES users(id), amount INT, status STRING)"
         tokens = tokenizer.tokenize(orders_sql)
         command = parser.parse(tokens)
-        executor.execute(command, db_name=db)
+        executor.execute(command)
 
         # Insert demo orders
         demo_orders = [
@@ -532,7 +595,7 @@ async def initialize_demo_data(db: str = "default"):
         for sql in demo_orders:
             tokens = tokenizer.tokenize(sql)
             command = parser.parse(tokens)
-            executor.execute(command, db_name=db)
+            executor.execute(command)
         
         logger.info("Demo data initialized successfully")
         
@@ -566,10 +629,24 @@ async def startup_event():
     logger.info("PesacodeDB API Server Starting")
     logger.info("=" * 80)
     logger.info(f"Version: 2.0.0")
+    logger.info(f"Connection URL: {PESADB_URL}")
+    logger.info(f"Default database: {default_database}")
     logger.info(f"Databases loaded: {len(database_manager.list_databases())}")
     logger.info(f"Available databases: {', '.join(database_manager.list_databases())}")
     logger.info(f"Server start time: {stats['server_start_time']}")
     logger.info("=" * 80)
+    logger.info("🔒 Security Configuration:")
+    logger.info(f"   API Key Authentication: {'✅ ENABLED' if REQUIRE_API_KEY else '⚠️ DISABLED'}")
+    logger.info(f"   API Key Configured: {'✅ YES' if API_KEY else '❌ NO - SERVER WILL NOT START PROPERLY!'}")
+    logger.info(f"   CORS Origins: {os.getenv('CORS_ORIGINS', '*')}")
+    logger.info("=" * 80)
+
+    if REQUIRE_API_KEY and not API_KEY:
+        logger.error("❌ CRITICAL: API_KEY is required but not set in environment variables!")
+        logger.error("   Set API_KEY in your .env file or environment variables")
+    elif not REQUIRE_API_KEY:
+        logger.warning("⚠️ WARNING: Running with API key authentication DISABLED!")
+        logger.warning("   This is NOT recommended for production environments!")
 
 @app.on_event("shutdown")
 async def shutdown_event():

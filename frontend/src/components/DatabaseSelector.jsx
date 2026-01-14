@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import apiClient from "@/lib/api-client";
 import {
   Select,
   SelectContent,
@@ -40,8 +40,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
-const API = `${BACKEND_URL}/api`;
 
 export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) {
   const [databases, setDatabases] = useState([]);
@@ -64,7 +62,7 @@ export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) 
 
   const fetchDatabases = async () => {
     try {
-      const response = await axios.get(`${API}/databases`);
+      const response = await apiClient.get('/databases');
       setDatabases(response.data.databases || []);
     } catch (err) {
       console.error("Failed to fetch databases:", err);
@@ -74,7 +72,7 @@ export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) 
 
   const fetchDatabaseInfo = async (dbName) => {
     try {
-      const response = await axios.get(`${API}/databases/${dbName}/info`);
+      const response = await apiClient.get(`/databases/${dbName}/info`);
       setDatabaseInfo(response.data);
     } catch (err) {
       console.error("Failed to fetch database info:", err);
@@ -91,7 +89,7 @@ export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) 
     setLoading(true);
 
     try {
-      await axios.post(`${API}/databases`, { name: newDatabaseName.trim() });
+      await apiClient.post('/databases', { name: newDatabaseName.trim() });
       toast.success(`Database '${newDatabaseName}' created successfully`);
       setNewDatabaseName("");
       setCreateDialogOpen(false);
@@ -110,7 +108,7 @@ export default function DatabaseSelector({ currentDatabase, onDatabaseChange }) 
     setLoading(true);
 
     try {
-      await axios.delete(`${API}/databases/${databaseToDelete}`);
+      await apiClient.delete(`/databases/${databaseToDelete}`);
       toast.success(`Database '${databaseToDelete}' deleted successfully`);
       setDeleteDialogOpen(false);
       setDatabaseToDelete(null);
