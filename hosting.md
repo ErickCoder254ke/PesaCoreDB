@@ -192,9 +192,11 @@ Expected response:
 ```
 Name:                pesacodedb-frontend
 Root Directory:      frontend
-Build Command:       npm install && npm run build
+Build Command:       npm install --legacy-peer-deps && npm run build
 Publish Directory:   build
 ```
+
+**Note:** We use `--legacy-peer-deps` to handle the react-day-picker/date-fns dependency resolution.
 
 ### 2.3 Add Environment Variables
 
@@ -410,23 +412,50 @@ For development/testing only:
 **Symptoms:**
 - Render build logs show npm errors
 - Deployment fails
+- Error: "Your lockfile needs to be updated, but yarn was run with `--frozen-lockfile`"
+- Error: "package-lock.json found... advised not to mix package managers"
 
-**Solutions:**
+**Root Cause:**
+- Project has both `yarn.lock` and `package-lock.json` (conflicting package managers)
+- Render defaults to Yarn when it sees `yarn.lock`
+- Lockfile is out of sync with dependencies
 
-1. **Check Node version:**
+**Solution (Recommended - Use npm):**
+
+Update your Render **Build Command** to:
+```
+npm install --legacy-peer-deps && npm run build
+```
+
+This forces npm usage and handles peer dependency conflicts.
+
+**Alternative Solutions:**
+
+1. **Option A: Delete package-lock.json and use Yarn:**
+   ```bash
+   cd frontend
+   rm package-lock.json
+   yarn install
+   git add yarn.lock package.json
+   git commit -m "Update yarn.lock and remove package-lock.json"
+   git push
+   ```
+
+2. **Option B: Delete yarn.lock and use npm only:**
+   ```bash
+   cd frontend
+   rm yarn.lock
+   npm install --legacy-peer-deps
+   git add package-lock.json package.json
+   git commit -m "Switch to npm, remove yarn.lock"
+   git push
+   ```
+   Then use Build Command: `npm install --legacy-peer-deps && npm run build`
+
+3. **Check Node version:**
    - Add `.node-version` file in frontend folder:
    ```
    18.17.0
-   ```
-
-2. **Check package.json dependencies:**
-   - Ensure all dependencies are compatible
-   - No version conflicts
-
-3. **Try legacy peer deps:**
-   - Update Build Command to:
-   ```
-   npm install --legacy-peer-deps && npm run build
    ```
 
 ### Issue 4: Backend Not Starting
