@@ -94,7 +94,24 @@ const SQLAssistant = ({ tables = [], onInsertQuery, currentDatabase = "default",
 
     try {
       const fullContext = `${SQL_KNOWLEDGE_BASE}\n\n${schemaContext}`;
-      const response = await generateSQLFromNaturalLanguage(sanitized, fullContext);
+      let response;
+
+      // Detect if user wants to explain a query
+      const explainMatch = sanitized.match(/^explain:?\s*(.+)/i);
+      if (explainMatch) {
+        const queryToExplain = explainMatch[1].trim();
+        response = await explainSQLQuery(queryToExplain, fullContext);
+      }
+      // Detect if user wants to optimize a query
+      else if (sanitized.match(/^optimize:?\s*/i)) {
+        const optimizeMatch = sanitized.match(/^optimize:?\s*(.+)/i);
+        const queryToOptimize = optimizeMatch[1].trim();
+        response = await optimizeSQLQuery(queryToOptimize, fullContext);
+      }
+      // Default: Generate SQL from natural language
+      else {
+        response = await generateSQLFromNaturalLanguage(sanitized, fullContext);
+      }
 
       setMessages((prev) => prev.filter((msg) => msg.id !== loadingMsg.id));
 

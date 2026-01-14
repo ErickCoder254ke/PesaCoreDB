@@ -229,7 +229,7 @@ export default function DatabaseInterface() {
     }
 
     try {
-      await axios.delete(`${API}/tables/${tableName}`, {
+      await apiClient.delete(`/tables/${tableName}`, {
         params: { db: currentDatabase }
       });
       toast.success(`Table '${tableName}' dropped successfully`);

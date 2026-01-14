@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional
 import sys
 import time
 from datetime import datetime
+import re
 
 # Add parent directory to path to import rdbms module
 ROOT_DIR = Path(__file__).parent.parent
@@ -18,6 +19,7 @@ sys.path.insert(0, str(ROOT_DIR))
 from rdbms.engine import Database, DatabaseManager
 from rdbms.sql import Tokenizer, Parser, Executor
 from rdbms.connection import connect, parse_connection_url
+from rdbms.soft_delete import SoftDeleteMixin
 
 # Load environment variables
 ENV_DIR = Path(__file__).parent
@@ -317,6 +319,47 @@ async def get_database_info(db_name: str):
         logger.error(f"Error getting database info: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def validate_sql_input(sql: str) -> None:
+    """
+    Validate and sanitize SQL input.
+
+    Args:
+        sql: SQL query string
+
+    Raises:
+        HTTPException: If input validation fails
+    """
+    # Check for empty/whitespace-only input
+    if not sql or not sql.strip():
+        raise HTTPException(status_code=400, detail="SQL query cannot be empty")
+
+    # Check maximum length to prevent DoS
+    max_length = 10000
+    if len(sql) > max_length:
+        raise HTTPException(
+            status_code=400,
+            detail=f"SQL query too long (max {max_length} characters)"
+        )
+
+    # Check for suspicious patterns that might indicate injection attempts
+    # Note: Our tokenizer/parser already protects against injection, but this is extra validation
+    dangerous_patterns = [
+        r'--\s*$',  # SQL comment at end (could hide malicious code)
+        r'/\*.*?\*/',  # Block comments
+        r';\s*DROP\s+',  # Multiple statements with DROP
+        r';\s*DELETE\s+',  # Multiple statements with DELETE
+        r'EXEC\s*\(',  # Execute statements
+        r'EXECUTE\s*\(',  # Execute statements
+    ]
+
+    for pattern in dangerous_patterns:
+        if re.search(pattern, sql, re.IGNORECASE):
+            logger.warning(f"Potentially dangerous SQL pattern detected: {pattern}")
+            # Don't block, just log - our parser will handle it safely
+
+    # The tokenizer and parser provide the real protection against injection
+    # This validation is just an extra layer of defense
+
 @api_router.post("/query", response_model=QueryResponse)
 async def execute_query(request: QueryRequest):
     """
@@ -328,6 +371,11 @@ async def execute_query(request: QueryRequest):
     - SELECT (with WHERE and INNER JOIN)
     - UPDATE (with WHERE)
     - DELETE (with WHERE)
+
+    Security:
+    - Uses tokenizer/parser architecture for injection protection
+    - Input validation for length and suspicious patterns
+    - All SQL is parsed into structured commands before execution
     """
     start_time = time.time()
     stats["total_queries"] += 1
@@ -341,10 +389,8 @@ async def execute_query(request: QueryRequest):
             stats["failed_queries"] += 1
             raise HTTPException(status_code=404, detail=f"Database '{db_name}' does not exist")
 
-        # Validate SQL input
-        if not request.sql or not request.sql.strip():
-            stats["failed_queries"] += 1
-            raise HTTPException(status_code=400, detail="SQL query cannot be empty")
+        # Validate and sanitize SQL input
+        validate_sql_input(request.sql)
 
         # Tokenize the SQL
         tokens = tokenizer.tokenize(request.sql)

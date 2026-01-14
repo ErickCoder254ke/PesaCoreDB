@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function ExportMenu({ data, disabled }) {
+export function ExportMenu({ data, disabled, tableName = "exported_table" }) {
   const exportToCSV = () => {
     if (!data || data.length === 0) return;
 
@@ -50,7 +50,7 @@ export function ExportMenu({ data, disabled }) {
         if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
         return value;
       }).join(", ");
-      return `INSERT INTO table_name (${headers.join(", ")}) VALUES (${values});`;
+      return `INSERT INTO ${tableName} (${headers.join(", ")}) VALUES (${values});`;
     }).join("\n");
 
     downloadFile(sqlStatements, "query-result.sql", "text/sql");

@@ -303,7 +303,44 @@ class Executor:
         else:
             try:
                 table = database.get_table(command.table_name)
-                return table.select(command.columns, command.where_col, command.where_val)
+
+                # Check if this is an aggregate query
+                if command.aggregates:
+                    return self._execute_select_with_aggregates(command, table)
+
+                # Use new expression-based WHERE if available, otherwise fall back to legacy
+                if command.where_clause:
+                    # Get all rows first
+                    all_rows = table.select(command.columns)
+
+                    # Filter rows using expression
+                    filtered_rows = []
+                    for row in all_rows:
+                        try:
+                            if command.where_clause.evaluate(row):
+                                filtered_rows.append(row)
+                        except ValueError as e:
+                            # Column not found in row
+                            raise ExecutorError(str(e))
+
+                    result = filtered_rows
+                else:
+                    # Legacy: simple equality WHERE or no WHERE
+                    result = table.select(command.columns, command.where_col, command.where_val)
+
+                # Apply ORDER BY if specified
+                if command.order_by:
+                    result = self._apply_order_by(result, command.order_by)
+
+                # Apply DISTINCT if specified
+                if command.distinct:
+                    result = self._apply_distinct(result)
+
+                # Apply OFFSET and LIMIT
+                result = self._apply_limit_offset(result, command.limit, command.offset)
+
+                return result
+
             except ValueError as e:
                 error_msg = str(e)
                 if 'does not exist' in error_msg and 'table' in error_msg.lower():
@@ -323,40 +360,40 @@ class Executor:
             except ValueError:
                 raise TableNotFoundError(command.table_name)
             raise TableNotFoundError(command.join_table)
-        
+
         # Parse join columns (format: table.column)
         left_join_parts = command.join_left_col.split('.')
         right_join_parts = command.join_right_col.split('.')
-        
+
         if len(left_join_parts) != 2 or len(right_join_parts) != 2:
             raise ExecutorError("JOIN condition must use table.column format")
-        
+
         left_table_name, left_col_name = left_join_parts
         right_table_name, right_col_name = right_join_parts
-        
+
         # Validate table names
         if left_table_name != command.table_name:
             raise ExecutorError(f"Left join table '{left_table_name}' does not match FROM table '{command.table_name}'")
         if right_table_name != command.join_table:
             raise ExecutorError(f"Right join table '{right_table_name}' does not match JOIN table '{command.join_table}'")
-        
+
         # Validate columns exist
         if left_col_name not in left_table.schema:
             raise ExecutorError(f"ColumnNotFoundError: column '{left_col_name}' does not exist in table '{left_table_name}'")
         if right_col_name not in right_table.schema:
             raise ExecutorError(f"ColumnNotFoundError: column '{right_col_name}' does not exist in table '{right_table_name}'")
-        
+
         # Perform join
         result = []
         left_rows = left_table.select()
         right_rows = right_table.select()
-        
+
         for left_row in left_rows:
             left_join_value = left_row[left_col_name]
-            
+
             for right_row in right_rows:
                 right_join_value = right_row[right_col_name]
-                
+
                 if left_join_value == right_join_value:
                     # Merge rows with table prefixes
                     joined_row = {}
@@ -364,7 +401,7 @@ class Executor:
                         joined_row[f"{left_table_name}.{col}"] = val
                     for col, val in right_row.items():
                         joined_row[f"{right_table_name}.{col}"] = val
-                    
+
                     # Project requested columns
                     if command.columns:
                         projected_row = {}
@@ -379,7 +416,7 @@ class Executor:
                                 # Try to find column in either table
                                 left_key = f"{left_table_name}.{col}"
                                 right_key = f"{right_table_name}.{col}"
-                                
+
                                 if left_key in joined_row:
                                     projected_row[col] = joined_row[left_key]
                                 elif right_key in joined_row:
@@ -389,7 +426,18 @@ class Executor:
                         result.append(projected_row)
                     else:
                         result.append(joined_row)
-        
+
+        # Apply ORDER BY if specified
+        if command.order_by:
+            result = self._apply_order_by(result, command.order_by)
+
+        # Apply DISTINCT if specified
+        if command.distinct:
+            result = self._apply_distinct(result)
+
+        # Apply OFFSET and LIMIT
+        result = self._apply_limit_offset(result, command.limit, command.offset)
+
         return result
     
     def _execute_update(self, command: UpdateCommand, database: Database) -> str:
@@ -408,13 +456,33 @@ class Executor:
                     self._validate_foreign_keys(table, temp_values, database)
                     break
 
-            count = table.update(command.set_col, command.set_val, command.where_col, command.where_val)
-            
+            # Use new expression-based WHERE if available
+            if command.where_clause:
+                # Get all rows and filter based on expression
+                all_rows = table.select()
+                count = 0
+
+                for i, row in enumerate(all_rows):
+                    try:
+                        if command.where_clause.evaluate(row):
+                            # Get the primary key column value to identify the row
+                            pk_col = table.primary_key_column
+                            pk_val = row[pk_col]
+
+                            # Update using primary key
+                            table.update(command.set_col, command.set_val, pk_col, pk_val)
+                            count += 1
+                    except ValueError as e:
+                        raise ExecutorError(str(e))
+            else:
+                # Legacy: simple equality WHERE or no WHERE
+                count = table.update(command.set_col, command.set_val, command.where_col, command.where_val)
+
             # Auto-save
             self.database_manager.save_database(self.current_database)
-            
+
             return f"{count} row(s) updated in '{command.table_name}'."
-        
+
         except ValueError as e:
             error_msg = str(e)
             if 'constraint' in error_msg.lower() or 'unique' in error_msg.lower():
@@ -427,14 +495,254 @@ class Executor:
             table = database.get_table(command.table_name)
         except ValueError:
             raise TableNotFoundError(command.table_name)
-        
+
         try:
-            count = table.delete(command.where_col, command.where_val)
-            
+            # Use new expression-based WHERE if available
+            if command.where_clause:
+                # Get all rows and filter based on expression
+                all_rows = table.select()
+                count = 0
+                rows_to_delete = []
+
+                # Find all rows that match the WHERE clause
+                for row in all_rows:
+                    try:
+                        if command.where_clause.evaluate(row):
+                            # Get the primary key column value to identify the row
+                            pk_col = table.primary_key_column
+                            pk_val = row[pk_col]
+                            rows_to_delete.append(pk_val)
+                    except ValueError as e:
+                        raise ExecutorError(str(e))
+
+                # Delete rows using primary key (one at a time to maintain integrity)
+                for pk_val in rows_to_delete:
+                    pk_col = table.primary_key_column
+                    table.delete(pk_col, pk_val)
+                    count += 1
+            else:
+                # Legacy: simple equality WHERE or no WHERE
+                count = table.delete(command.where_col, command.where_val)
+
             # Auto-save
             self.database_manager.save_database(self.current_database)
-            
+
             return f"{count} row(s) deleted from '{command.table_name}'."
-        
+
         except ValueError as e:
             raise ExecutorError(str(e))
+
+    def _apply_order_by(self, rows: List[Dict[str, Any]], order_by: List[tuple]) -> List[Dict[str, Any]]:
+        """Apply ORDER BY clause to result rows.
+
+        Args:
+            rows: List of row dictionaries to sort
+            order_by: List of (column_name, direction) tuples
+
+        Returns:
+            Sorted list of rows
+
+        Raises:
+            ExecutorError: If column doesn't exist
+        """
+        if not rows or not order_by:
+            return rows
+
+        # Validate that all ORDER BY columns exist in the result
+        for col_name, _ in order_by:
+            if col_name not in rows[0]:
+                raise ExecutorError(f"ColumnNotFoundError: column '{col_name}' not found in result set")
+
+        # Sort by multiple columns (reverse order for stable sort)
+        sorted_rows = rows[:]
+        for col_name, direction in reversed(order_by):
+            reverse = (direction == 'DESC')
+
+            # Sort with None values at the end
+            sorted_rows.sort(
+                key=lambda row: (row[col_name] is None, row[col_name]),
+                reverse=reverse
+            )
+
+        return sorted_rows
+
+    def _apply_distinct(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Apply DISTINCT to remove duplicate rows.
+
+        Args:
+            rows: List of row dictionaries
+
+        Returns:
+            List of unique rows (order preserved)
+        """
+        if not rows:
+            return rows
+
+        seen = set()
+        unique_rows = []
+
+        for row in rows:
+            # Convert row to tuple of items for hashing
+            # Sort items to ensure consistent ordering
+            row_tuple = tuple(sorted(row.items()))
+
+            if row_tuple not in seen:
+                seen.add(row_tuple)
+                unique_rows.append(row)
+
+        return unique_rows
+
+    def _apply_limit_offset(self, rows: List[Dict[str, Any]], limit: Optional[int], offset: Optional[int]) -> List[Dict[str, Any]]:
+        """Apply LIMIT and OFFSET to result rows.
+
+        Args:
+            rows: List of row dictionaries
+            limit: Maximum number of rows to return (None = no limit)
+            offset: Number of rows to skip (None = no offset)
+
+        Returns:
+            Sliced list of rows
+        """
+        if not rows:
+            return rows
+
+        start = offset if offset else 0
+        end = start + limit if limit else None
+
+        return rows[start:end]
+
+    def _execute_select_with_aggregates(self, command: SelectCommand, table: Table) -> List[Dict[str, Any]]:
+        """Execute SELECT with aggregate functions (COUNT, SUM, AVG, MIN, MAX).
+
+        Args:
+            command: SelectCommand with aggregates
+            table: Table to query
+
+        Returns:
+            List of aggregated result rows
+        """
+        # Get all rows from table
+        all_rows = table.select()
+
+        # Apply WHERE clause to filter rows BEFORE aggregation
+        if command.where_clause:
+            filtered_rows = []
+            for row in all_rows:
+                try:
+                    if command.where_clause.evaluate(row):
+                        filtered_rows.append(row)
+                except ValueError as e:
+                    raise ExecutorError(str(e))
+            all_rows = filtered_rows
+
+        # Check if we have GROUP BY
+        if command.group_by:
+            # Group rows by GROUP BY columns
+            groups = self._group_rows(all_rows, command.group_by)
+
+            # Aggregate each group
+            result = []
+            for group_key, group_rows in groups.items():
+                row_result = {}
+
+                # Add GROUP BY columns to result
+                for i, col_name in enumerate(command.group_by):
+                    row_result[col_name] = group_key[i]
+
+                # Calculate aggregates for this group
+                for alias, agg_expr in command.aggregates:
+                    try:
+                        agg_value = agg_expr.aggregate(group_rows)
+                        row_result[alias] = agg_value
+                    except ValueError as e:
+                        raise ExecutorError(str(e))
+
+                # Add non-aggregate columns (should be in GROUP BY)
+                if command.columns:
+                    for col_name in command.columns:
+                        if col_name not in row_result and col_name not in command.group_by:
+                            raise ExecutorError(
+                                f"Column '{col_name}' must appear in GROUP BY clause or be used in an aggregate function"
+                            )
+                        # Column already added from GROUP BY
+
+                result.append(row_result)
+
+            # Apply HAVING clause to filter groups
+            if command.having_clause:
+                filtered_result = []
+                for row in result:
+                    try:
+                        if command.having_clause.evaluate(row):
+                            filtered_result.append(row)
+                    except ValueError as e:
+                        raise ExecutorError(str(e))
+                result = filtered_result
+        else:
+            # No GROUP BY - aggregate over all rows
+            row_result = {}
+
+            # Calculate aggregates
+            for alias, agg_expr in command.aggregates:
+                try:
+                    agg_value = agg_expr.aggregate(all_rows)
+                    row_result[alias] = agg_value
+                except ValueError as e:
+                    raise ExecutorError(str(e))
+
+            # Add non-aggregate columns (if any - this is technically an error in SQL)
+            if command.columns:
+                if len(all_rows) > 0:
+                    # Take values from first row (arbitrary choice - real SQL would error)
+                    for col_name in command.columns:
+                        row_result[col_name] = all_rows[0].get(col_name)
+                else:
+                    for col_name in command.columns:
+                        row_result[col_name] = None
+
+            result = [row_result]
+
+        # Apply ORDER BY if specified
+        if command.order_by:
+            result = self._apply_order_by(result, command.order_by)
+
+        # Apply DISTINCT if specified
+        if command.distinct:
+            result = self._apply_distinct(result)
+
+        # Apply OFFSET and LIMIT
+        result = self._apply_limit_offset(result, command.limit, command.offset)
+
+        return result
+
+    def _group_rows(self, rows: List[Dict[str, Any]], group_by: List[str]) -> Dict[tuple, List[Dict[str, Any]]]:
+        """Group rows by specified columns.
+
+        Args:
+            rows: List of row dictionaries
+            group_by: List of column names to group by
+
+        Returns:
+            Dictionary mapping group_key tuple to list of rows in that group
+
+        Raises:
+            ExecutorError: If a GROUP BY column doesn't exist
+        """
+        groups = {}
+
+        for row in rows:
+            # Build group key from GROUP BY columns
+            group_key = []
+            for col_name in group_by:
+                if col_name not in row:
+                    raise ExecutorError(f"Column '{col_name}' in GROUP BY does not exist")
+                group_key.append(row[col_name])
+
+            group_key = tuple(group_key)
+
+            if group_key not in groups:
+                groups[group_key] = []
+
+            groups[group_key].append(row)
+
+        return groups

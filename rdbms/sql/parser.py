@@ -1,8 +1,13 @@
 """SQL parser for converting tokens into command objects."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from .tokenizer import Token
 from ..engine import DataType, ColumnDefinition
+from .expressions import (
+    Expression, LiteralExpression, ColumnExpression, ComparisonExpression,
+    LogicalExpression, IsNullExpression, BetweenExpression, InExpression, LikeExpression,
+    AggregateExpression
+)
 
 
 class ParserError(Exception):
@@ -117,45 +122,66 @@ class InsertCommand(ParsedCommand):
 
 class SelectCommand(ParsedCommand):
     """Parsed SELECT command."""
-    
-    def __init__(self, columns: List[str], table_name: str, where_col: Optional[str] = None,
-                 where_val: Any = None, join_table: Optional[str] = None,
-                 join_left_col: Optional[str] = None, join_right_col: Optional[str] = None):
+
+    def __init__(self, columns: List[str], table_name: str, where_clause: Optional[Expression] = None,
+                 join_table: Optional[str] = None, join_left_col: Optional[str] = None,
+                 join_right_col: Optional[str] = None, order_by: Optional[List[Tuple[str, str]]] = None,
+                 limit: Optional[int] = None, offset: Optional[int] = None,
+                 distinct: bool = False,
+                 aggregates: Optional[List[Tuple[str, AggregateExpression]]] = None,
+                 group_by: Optional[List[str]] = None,
+                 having_clause: Optional[Expression] = None,
+                 where_col: Optional[str] = None, where_val: Any = None):
         self.columns = columns
         self.table_name = table_name
-        self.where_col = where_col
-        self.where_val = where_val
+        self.where_clause = where_clause  # Expression object for WHERE clause
         self.join_table = join_table
         self.join_left_col = join_left_col
         self.join_right_col = join_right_col
-    
+        self.order_by = order_by  # List of (column_name, direction) tuples
+        self.limit = limit  # Max number of rows to return
+        self.offset = offset  # Number of rows to skip
+        self.distinct = distinct  # Remove duplicate rows
+        self.aggregates = aggregates  # List of (alias, AggregateExpression) tuples
+        self.group_by = group_by  # List of column names to group by
+        self.having_clause = having_clause  # Expression for HAVING clause (filter groups)
+        # Backward compatibility
+        self.where_col = where_col
+        self.where_val = where_val
+
     def __repr__(self) -> str:
         return f"SelectCommand(columns={self.columns}, table={self.table_name})"
 
 
 class UpdateCommand(ParsedCommand):
     """Parsed UPDATE command."""
-    
+
     def __init__(self, table_name: str, set_col: str, set_val: Any,
+                 where_clause: Optional[Expression] = None,
                  where_col: Optional[str] = None, where_val: Any = None):
         self.table_name = table_name
         self.set_col = set_col
         self.set_val = set_val
+        self.where_clause = where_clause
+        # Backward compatibility
         self.where_col = where_col
         self.where_val = where_val
-    
+
     def __repr__(self) -> str:
         return f"UpdateCommand(table={self.table_name}, set={self.set_col}={self.set_val})"
 
 
 class DeleteCommand(ParsedCommand):
     """Parsed DELETE command."""
-    
-    def __init__(self, table_name: str, where_col: Optional[str] = None, where_val: Any = None):
+
+    def __init__(self, table_name: str, where_clause: Optional[Expression] = None,
+                 where_col: Optional[str] = None, where_val: Any = None):
         self.table_name = table_name
+        self.where_clause = where_clause
+        # Backward compatibility
         self.where_col = where_col
         self.where_val = where_val
-    
+
     def __repr__(self) -> str:
         return f"DeleteCommand(table={self.table_name})"
 
@@ -460,99 +486,131 @@ class Parser:
     def _parse_select(self) -> SelectCommand:
         """Parse SELECT statement."""
         self.consume('SELECT')
-        
-        # Parse columns
+
+        # Check for DISTINCT
+        distinct = False
+        if self.peek() and self.peek().value == 'DISTINCT':
+            self.consume('DISTINCT')
+            distinct = True
+
+        # Parse columns and aggregate functions
         columns = []
+        aggregates = []  # List of (alias, AggregateExpression)
+
         if self.peek() and self.peek().type == 'STAR':
             self.consume('*')
             columns = None  # Select all
         else:
             while True:
-                # Handle table.column syntax
-                col_token = self.consume(expected_type='IDENTIFIER')
-                col_name = col_token.value
-                
-                if self.peek() and self.peek().type == 'DOT':
-                    self.consume('.')
-                    actual_col_token = self.consume(expected_type='IDENTIFIER')
-                    col_name = actual_col_token.value
-                
-                columns.append(col_name)
-                
+                # Check if this is an aggregate function
+                if self._is_aggregate_function():
+                    alias, agg_expr = self._parse_aggregate_function()
+                    aggregates.append((alias, agg_expr))
+                else:
+                    # Handle table.column syntax
+                    col_token = self.consume(expected_type='IDENTIFIER')
+                    col_name = col_token.value
+
+                    if self.peek() and self.peek().type == 'DOT':
+                        self.consume('.')
+                        actual_col_token = self.consume(expected_type='IDENTIFIER')
+                        col_name = actual_col_token.value
+
+                    columns.append(col_name)
+
                 if self.peek() and self.peek().value == ',':
                     self.consume(',')
                 else:
                     break
-        
+
         self.consume('FROM')
         table_name_token = self.consume(expected_type='IDENTIFIER')
         table_name = table_name_token.value
-        
+
         # Check for JOIN
         join_table = None
         join_left_col = None
         join_right_col = None
-        
+
         if self.peek() and self.peek().value == 'INNER':
             self.consume('INNER')
             self.consume('JOIN')
-            
+
             join_table_token = self.consume(expected_type='IDENTIFIER')
             join_table = join_table_token.value
-            
+
             self.consume('ON')
-            
+
             # Parse left side of join condition
             left_table_token = self.consume(expected_type='IDENTIFIER')
             self.consume('.')
             left_col_token = self.consume(expected_type='IDENTIFIER')
             join_left_col = f"{left_table_token.value}.{left_col_token.value}"
-            
+
             self.consume('=')
-            
+
             # Parse right side of join condition
             right_table_token = self.consume(expected_type='IDENTIFIER')
             self.consume('.')
             right_col_token = self.consume(expected_type='IDENTIFIER')
             join_right_col = f"{right_table_token.value}.{right_col_token.value}"
-        
+
         # Check for WHERE
-        where_col = None
-        where_val = None
-        
+        where_clause = None
         if self.peek() and self.peek().value == 'WHERE':
             self.consume('WHERE')
-            
-            col_token = self.consume(expected_type='IDENTIFIER')
-            where_col = col_token.value
-            
-            self.consume('=')
-            
-            val_token = self.peek()
-            if not val_token:
-                raise ParserError("Expected value in WHERE clause")
-            
-            if val_token.type == 'NUMBER':
-                self.consume()
-                try:
-                    where_val = int(val_token.value)
-                except ValueError:
-                    where_val = float(val_token.value)
-            elif val_token.type == 'STRING':
-                self.consume()
-                where_val = val_token.value
-            elif val_token.value in ('TRUE', 'FALSE'):
-                self.consume()
-                where_val = val_token.value == 'TRUE'
-            elif val_token.value == 'NULL':
-                self.consume()
-                where_val = None
-            else:
-                raise ParserError(f"Unexpected value in WHERE clause", val_token)
-        
+            where_clause = self._parse_where_expression()
+
+        # Check for GROUP BY
+        group_by = None
+        if self.peek() and self.peek().value == 'GROUP':
+            self.consume('GROUP')
+            self.consume('BY')
+            group_by = []
+            while True:
+                col_token = self.consume(expected_type='IDENTIFIER')
+                group_by.append(col_token.value)
+
+                if self.peek() and self.peek().value == ',':
+                    self.consume(',')
+                else:
+                    break
+
+        # Check for HAVING
+        having_clause = None
+        if self.peek() and self.peek().value == 'HAVING':
+            self.consume('HAVING')
+            having_clause = self._parse_where_expression()
+
+        # Check for ORDER BY
+        order_by = self._parse_order_by()
+
+        # Check for LIMIT
+        limit = None
+        if self.peek() and self.peek().value == 'LIMIT':
+            self.consume('LIMIT')
+            limit_token = self.consume(expected_type='NUMBER')
+            limit = int(limit_token.value)
+            if limit < 0:
+                raise ParserError("LIMIT must be non-negative", limit_token)
+
+        # Check for OFFSET
+        offset = None
+        if self.peek() and self.peek().value == 'OFFSET':
+            self.consume('OFFSET')
+            offset_token = self.consume(expected_type='NUMBER')
+            offset = int(offset_token.value)
+            if offset < 0:
+                raise ParserError("OFFSET must be non-negative", offset_token)
+
         self._consume_optional_semicolon()
-        
-        return SelectCommand(columns, table_name, where_col, where_val, join_table, join_left_col, join_right_col)
+
+        return SelectCommand(columns, table_name, where_clause=where_clause,
+                           join_table=join_table, join_left_col=join_left_col,
+                           join_right_col=join_right_col, order_by=order_by,
+                           limit=limit, offset=offset, distinct=distinct,
+                           aggregates=aggregates if aggregates else None,
+                           group_by=group_by, having_clause=having_clause)
     
     def _parse_update(self) -> UpdateCommand:
         """Parse UPDATE statement."""
@@ -591,42 +649,14 @@ class Parser:
             raise ParserError(f"Unexpected value in SET clause", set_val_token)
         
         # Check for WHERE
-        where_col = None
-        where_val = None
-        
+        where_clause = None
         if self.peek() and self.peek().value == 'WHERE':
             self.consume('WHERE')
-            
-            col_token = self.consume(expected_type='IDENTIFIER')
-            where_col = col_token.value
-            
-            self.consume('=')
-            
-            val_token = self.peek()
-            if not val_token:
-                raise ParserError("Expected value in WHERE clause")
-            
-            if val_token.type == 'NUMBER':
-                self.consume()
-                try:
-                    where_val = int(val_token.value)
-                except ValueError:
-                    where_val = float(val_token.value)
-            elif val_token.type == 'STRING':
-                self.consume()
-                where_val = val_token.value
-            elif val_token.value in ('TRUE', 'FALSE'):
-                self.consume()
-                where_val = val_token.value == 'TRUE'
-            elif val_token.value == 'NULL':
-                self.consume()
-                where_val = None
-            else:
-                raise ParserError(f"Unexpected value in WHERE clause", val_token)
-        
+            where_clause = self._parse_where_expression()
+
         self._consume_optional_semicolon()
-        
-        return UpdateCommand(table_name, set_col, set_val, where_col, where_val)
+
+        return UpdateCommand(table_name, set_col, set_val, where_clause=where_clause)
     
     def _parse_delete(self) -> DeleteCommand:
         """Parse DELETE statement."""
@@ -637,44 +667,292 @@ class Parser:
         table_name = table_name_token.value
         
         # Check for WHERE
-        where_col = None
-        where_val = None
-        
+        where_clause = None
         if self.peek() and self.peek().value == 'WHERE':
             self.consume('WHERE')
-            
-            col_token = self.consume(expected_type='IDENTIFIER')
-            where_col = col_token.value
-            
-            self.consume('=')
-            
-            val_token = self.peek()
-            if not val_token:
-                raise ParserError("Expected value in WHERE clause")
-            
-            if val_token.type == 'NUMBER':
-                self.consume()
-                try:
-                    where_val = int(val_token.value)
-                except ValueError:
-                    where_val = float(val_token.value)
-            elif val_token.type == 'STRING':
-                self.consume()
-                where_val = val_token.value
-            elif val_token.value in ('TRUE', 'FALSE'):
-                self.consume()
-                where_val = val_token.value == 'TRUE'
-            elif val_token.value == 'NULL':
-                self.consume()
-                where_val = None
-            else:
-                raise ParserError(f"Unexpected value in WHERE clause", val_token)
-        
+            where_clause = self._parse_where_expression()
+
         self._consume_optional_semicolon()
-        
-        return DeleteCommand(table_name, where_col, where_val)
+
+        return DeleteCommand(table_name, where_clause=where_clause)
     
     def _consume_optional_semicolon(self):
         """Consume optional semicolon at end of statement."""
         if self.peek() and self.peek().type == 'SEMICOLON':
             self.consume(';')
+
+    def _parse_where_expression(self) -> Expression:
+        """Parse WHERE clause expression with full operator support.
+
+        Returns:
+            Expression tree representing the WHERE condition
+        """
+        return self._parse_or_expression()
+
+    def _parse_or_expression(self) -> Expression:
+        """Parse OR expression (lowest precedence)."""
+        left = self._parse_and_expression()
+
+        operands = [left]
+        while self.peek() and self.peek().value == 'OR':
+            self.consume('OR')
+            operands.append(self._parse_and_expression())
+
+        if len(operands) == 1:
+            return operands[0]
+        return LogicalExpression('OR', operands)
+
+    def _parse_and_expression(self) -> Expression:
+        """Parse AND expression (higher precedence than OR)."""
+        left = self._parse_not_expression()
+
+        operands = [left]
+        while self.peek() and self.peek().value == 'AND':
+            self.consume('AND')
+            operands.append(self._parse_not_expression())
+
+        if len(operands) == 1:
+            return operands[0]
+        return LogicalExpression('AND', operands)
+
+    def _parse_not_expression(self) -> Expression:
+        """Parse NOT expression (highest precedence)."""
+        if self.peek() and self.peek().value == 'NOT':
+            self.consume('NOT')
+            operand = self._parse_not_expression()  # Allow chained NOT
+            return LogicalExpression('NOT', [operand])
+
+        return self._parse_comparison_expression()
+
+    def _parse_comparison_expression(self) -> Expression:
+        """Parse comparison expression (=, !=, <, >, <=, >=, IS NULL, LIKE, IN, BETWEEN)."""
+        left = self._parse_primary_expression()
+
+        next_token = self.peek()
+        if not next_token:
+            return left
+
+        # Handle IS NULL / IS NOT NULL
+        if next_token.value == 'IS':
+            self.consume('IS')
+            is_not = False
+            if self.peek() and self.peek().value == 'NOT':
+                self.consume('NOT')
+                is_not = True
+            self.consume('NULL')
+            return IsNullExpression(left, is_not)
+
+        # Handle LIKE / NOT LIKE
+        if next_token.value == 'LIKE':
+            self.consume('LIKE')
+            pattern_token = self.consume(expected_type='STRING')
+            return LikeExpression(left, pattern_token.value, is_not=False)
+
+        # Handle NOT LIKE
+        if next_token.value == 'NOT':
+            lookahead = self.peek(1)
+            if lookahead and lookahead.value == 'LIKE':
+                self.consume('NOT')
+                self.consume('LIKE')
+                pattern_token = self.consume(expected_type='STRING')
+                return LikeExpression(left, pattern_token.value, is_not=True)
+
+        # Handle IN / NOT IN
+        if next_token.value == 'IN':
+            self.consume('IN')
+            self.consume('(')
+            values = []
+            while True:
+                values.append(self._parse_primary_expression())
+                if self.peek() and self.peek().value == ',':
+                    self.consume(',')
+                else:
+                    break
+            self.consume(')')
+            return InExpression(left, values, is_not=False)
+
+        # Handle NOT IN
+        if next_token.value == 'NOT':
+            lookahead = self.peek(1)
+            if lookahead and lookahead.value == 'IN':
+                self.consume('NOT')
+                self.consume('IN')
+                self.consume('(')
+                values = []
+                while True:
+                    values.append(self._parse_primary_expression())
+                    if self.peek() and self.peek().value == ',':
+                        self.consume(',')
+                    else:
+                        break
+                self.consume(')')
+                return InExpression(left, values, is_not=True)
+
+        # Handle BETWEEN / NOT BETWEEN
+        if next_token.value == 'BETWEEN':
+            self.consume('BETWEEN')
+            low = self._parse_primary_expression()
+            self.consume('AND')
+            high = self._parse_primary_expression()
+            return BetweenExpression(left, low, high, is_not=False)
+
+        # Handle NOT BETWEEN
+        if next_token.value == 'NOT':
+            lookahead = self.peek(1)
+            if lookahead and lookahead.value == 'BETWEEN':
+                self.consume('NOT')
+                self.consume('BETWEEN')
+                low = self._parse_primary_expression()
+                self.consume('AND')
+                high = self._parse_primary_expression()
+                return BetweenExpression(left, low, high, is_not=True)
+
+        # Handle comparison operators (=, !=, <>, <, >, <=, >=)
+        if next_token.type == 'COMPARISON' or next_token.type == 'EQUALS':
+            operator = next_token.value
+            self.consume()
+            right = self._parse_primary_expression()
+            return ComparisonExpression(operator, left, right)
+
+        # If no operator found, return the left side (single expression)
+        return left
+
+    def _parse_primary_expression(self) -> Expression:
+        """Parse primary expression (column, literal, or parenthesized expression)."""
+        token = self.peek()
+
+        if not token:
+            raise ParserError("Expected expression")
+
+        # Handle parentheses
+        if token.type == 'LPAREN':
+            self.consume('(')
+            expr = self._parse_where_expression()
+            self.consume(')')
+            return expr
+
+        # Handle literals
+        if token.type == 'NUMBER':
+            self.consume()
+            try:
+                value = int(token.value)
+            except ValueError:
+                value = float(token.value)
+            return LiteralExpression(value)
+
+        if token.type == 'STRING':
+            self.consume()
+            return LiteralExpression(token.value)
+
+        if token.value in ('TRUE', 'FALSE'):
+            self.consume()
+            return LiteralExpression(token.value == 'TRUE')
+
+        if token.value == 'NULL':
+            self.consume()
+            return LiteralExpression(None)
+
+        # Handle column reference
+        if token.type == 'IDENTIFIER':
+            self.consume()
+            return ColumnExpression(token.value)
+
+        raise ParserError(f"Unexpected token in expression", token)
+
+    def _parse_order_by(self) -> List[Tuple[str, str]]:
+        """Parse ORDER BY clause.
+
+        Returns:
+            List of (column_name, direction) tuples where direction is 'ASC' or 'DESC'
+        """
+        order_by = []
+
+        if self.peek() and self.peek().value == 'ORDER':
+            self.consume('ORDER')
+            self.consume('BY')
+
+            while True:
+                col_token = self.consume(expected_type='IDENTIFIER')
+                col_name = col_token.value
+
+                # Check for ASC/DESC
+                direction = 'ASC'  # Default
+                if self.peek() and self.peek().value in ('ASC', 'DESC'):
+                    direction = self.consume().value
+
+                order_by.append((col_name, direction))
+
+                # Check for more columns
+                if self.peek() and self.peek().value == ',':
+                    self.consume(',')
+                else:
+                    break
+
+        return order_by if order_by else None
+
+    def _is_aggregate_function(self) -> bool:
+        """Check if next tokens form an aggregate function call."""
+        token = self.peek()
+        if not token or token.type != 'IDENTIFIER':
+            return False
+
+        func_name = token.value.upper()
+        if func_name not in ('COUNT', 'SUM', 'AVG', 'MIN', 'MAX'):
+            return False
+
+        # Check for opening parenthesis
+        next_token = self.peek(1)
+        return next_token and next_token.type == 'LPAREN'
+
+    def _parse_aggregate_function(self) -> Tuple[str, AggregateExpression]:
+        """Parse aggregate function (COUNT, SUM, AVG, MIN, MAX).
+
+        Returns:
+            Tuple of (alias, AggregateExpression)
+        """
+        func_token = self.consume(expected_type='IDENTIFIER')
+        func_name = func_token.value.upper()
+
+        self.consume('(')
+
+        is_star = False
+        expression = None
+
+        if self.peek() and self.peek().type == 'STAR':
+            # COUNT(*)
+            self.consume('*')
+            is_star = True
+            if func_name != 'COUNT':
+                raise ParserError(f"{func_name}(*) is not valid, only COUNT(*) is allowed", func_token)
+        else:
+            # Parse expression (usually a column)
+            expression = self._parse_aggregate_expression_argument()
+
+        self.consume(')')
+
+        # Create aggregate expression
+        agg_expr = AggregateExpression(func_name, expression, is_star)
+
+        # Generate alias (e.g., "COUNT(*)", "SUM(amount)")
+        if is_star:
+            alias = f"{func_name}(*)"
+        else:
+            alias = f"{func_name}({expression})"
+
+        return alias, agg_expr
+
+    def _parse_aggregate_expression_argument(self) -> Expression:
+        """Parse the argument inside an aggregate function.
+
+        This is simpler than full expression parsing - just column references for now.
+        """
+        token = self.peek()
+
+        if not token:
+            raise ParserError("Expected column name in aggregate function")
+
+        if token.type == 'IDENTIFIER':
+            self.consume()
+            return ColumnExpression(token.value)
+
+        raise ParserError(f"Unexpected token in aggregate function: {token.value}", token)

@@ -7,7 +7,7 @@ const SQL_KEYWORDS = [
   "DELETE", "CREATE", "TABLE", "DROP", "ALTER", "JOIN", "INNER", "LEFT",
   "RIGHT", "ON", "AND", "OR", "NOT", "NULL", "TRUE", "FALSE", "PRIMARY",
   "KEY", "UNIQUE", "INT", "STRING", "BOOL", "FLOAT", "AS", "ORDER", "BY",
-  "GROUP", "HAVING", "LIMIT", "OFFSET", "ASC", "DESC", "DISTINCT"
+  "GROUP", "HAVING", "LIMIT", "OFFSET", "ASC", "DESC", "DISTINCT", "REFERENCES"
 ];
 
 export function SQLEditor({ value, onChange, placeholder, className, onExecute }) {
@@ -15,39 +15,44 @@ export function SQLEditor({ value, onChange, placeholder, className, onExecute }
   const [highlightedContent, setHighlightedContent] = useState("");
 
   useEffect(() => {
-    setHighlightedContent(highlightSQL(value));
+    setHighlightedContent(highlightSQL(value || ''));
   }, [value]);
 
   const highlightSQL = (sql) => {
-    if (!sql) return "";
+    if (!sql) return placeholder || '';
 
     let highlighted = sql;
 
-    // Highlight SQL keywords
+    // Escape HTML first
+    highlighted = highlighted
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    // Highlight SQL keywords (case-insensitive but preserve original case)
     SQL_KEYWORDS.forEach((keyword) => {
-      const regex = new RegExp(`\\b${keyword}\\b`, "gi");
-      highlighted = highlighted.replace(
-        regex,
-        `<span class="sql-keyword">${keyword}</span>`
-      );
+      const regex = new RegExp(`\\b(${keyword})\\b`, "gi");
+      highlighted = highlighted.replace(regex, (match) => {
+        return `<span style="color: hsl(var(--primary)); font-weight: 600;">${match}</span>`;
+      });
     });
 
-    // Highlight strings
+    // Highlight strings (green)
     highlighted = highlighted.replace(
       /'([^']*)'/g,
-      '<span class="sql-string">\'$1\'</span>'
+      '<span style="color: #22c55e;">\'$1\'</span>'
     );
 
-    // Highlight numbers
+    // Highlight numbers (blue)
     highlighted = highlighted.replace(
-      /\b(\d+)\b/g,
-      '<span class="sql-number">$1</span>'
+      /\b(\d+\.?\d*)\b/g,
+      '<span style="color: #3b82f6; font-weight: 500;">$1</span>'
     );
 
-    // Highlight operators
+    // Highlight operators (pink/red)
     highlighted = highlighted.replace(
-      /([=<>!]+)/g,
-      '<span class="sql-operator">$1</span>'
+      /([=<>!]+|[*+\-/])/g,
+      '<span style="color: #f43f5e;">$1</span>'
     );
 
     return highlighted;
@@ -91,7 +96,7 @@ export function SQLEditor({ value, onChange, placeholder, className, onExecute }
         )}
         spellCheck={false}
       />
-      <div className="absolute bottom-2 right-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-md border">
+      <div className="absolute bottom-2 right-2 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-md border pointer-events-none">
         <kbd className="text-xs">Ctrl</kbd> + <kbd className="text-xs">Enter</kbd> to execute
       </div>
     </div>

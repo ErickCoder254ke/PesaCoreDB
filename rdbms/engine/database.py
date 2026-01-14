@@ -29,6 +29,8 @@ class Database:
         """
         if table.name in self.tables:
             raise ValueError(f"Table '{table.name}' already exists")
+        # Set the database reference for foreign key validation
+        table.database = self
         self.tables[table.name] = table
 
     def get_table(self, table_name: str) -> Table:
@@ -97,10 +99,16 @@ class Database:
                 'rows': rows_data
             }
 
-        return {
+        result = {
             'name': self.name,
             'tables': tables_data
         }
+
+        # Include migration history if present
+        if hasattr(self, 'migration_history'):
+            result['migration_history'] = self.migration_history.to_dict()
+
+        return result
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'Database':
@@ -117,6 +125,11 @@ class Database:
         """
         db_name = data.get('name', 'default')
         db = Database(name=db_name)
+
+        # Load migration history if present
+        if 'migration_history' in data:
+            from ..migrations import MigrationHistory
+            db.migration_history = MigrationHistory.from_dict(data['migration_history'])
 
         tables_data = data.get('tables', {})
 
@@ -138,6 +151,9 @@ class Database:
 
             # Create table
             table = Table(table_name, columns)
+
+            # Set database reference for foreign key validation
+            table.database = db
 
             # Deserialize and insert rows
             rows_data = table_data.get('rows', [])

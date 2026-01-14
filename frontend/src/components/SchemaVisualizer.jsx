@@ -234,7 +234,7 @@ export function SchemaVisualizer({ currentDatabase, onGenerateQuery, className }
               {columns.length} column{columns.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <ExportMenu data={tableData} disabled={!tableData || tableData.length === 0} />
+          <ExportMenu data={tableData} tableName={selectedTable} disabled={!tableData || tableData.length === 0} />
         </div>
       </div>
     );
