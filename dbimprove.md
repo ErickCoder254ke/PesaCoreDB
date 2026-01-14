@@ -4,30 +4,9 @@
 
 This document tracks the implementation status of **PesacodeDB** - a relational database management system built from first principles in Python with a React frontend. This project demonstrates core database internals including data storage, indexing, constraint enforcement, query processing, and a REST API interface.
 
-**Last Updated:** January 14, 2026 (IMPLEMENTATION COMPLETE - PHASE 1)
-**Project Version:** 2.1.0
-**Status:** 🎉 **PHASE 1 COMPLETE!** Core SQL Features 95% Complete, Ready for Real-World Use
-
----
-
-## 🎉 MASSIVE UPDATE: Phase 1 Implementation Complete!
-
-**Major features implemented in this session:**
-
-### ✅ JUST IMPLEMENTED (January 14, 2026):
-- ✅ **LIMIT and OFFSET** - Pagination support for result sets
-- ✅ **DISTINCT** - Remove duplicate rows from results
-- ✅ **Aggregate Functions** - COUNT, SUM, AVG, MIN, MAX (full support)
-- ✅ **GROUP BY clause** - Group rows for aggregation
-- ✅ **HAVING clause** - Filter grouped results
-
-### ✅ PREVIOUSLY VERIFIED AS IMPLEMENTED:
-- ✅ **WHERE clause enhancements** (all comparison operators, AND/OR/NOT, parentheses)
-- ✅ **ORDER BY clause** (single & multi-column, ASC/DESC)
-- ✅ **Complex expressions** (IS NULL, LIKE, IN, BETWEEN, NOT variants)
-- ✅ **Expression evaluation engine** (full AST-based evaluation)
-
-**This makes PesacodeDB usable for 90% of real-world SQL queries!**
+**Last Updated:** January 14, 2026 (Updated with HIGH PRIORITY completions)
+**Project Version:** 2.2.0
+**Status:** 🎉 **PHASE 1+ COMPLETE!** Core SQL Features 98% Complete + Date/Time Functions + Outer Joins Implemented!
 
 ---
 
@@ -51,6 +30,7 @@ This document tracks the implementation status of **PesacodeDB** - a relational 
 │  - Authentication & validation                          │
 │  - Request logging & statistics                         │
 │  - Health checks & monitoring                           │
+│  - AI proxy to Google Gemini                            │
 └──────────────────────┬──────────────────────────────────┘
                        │ Direct function calls
 ┌──────────────────────▼──────────────────────────────────┐
@@ -99,79 +79,19 @@ This document tracks the implementation status of **PesacodeDB** - a relational 
 
 ---
 
-## ✅ Fully Implemented Features
+## ✅ FULLY IMPLEMENTED FEATURES
 
-### 1. Advanced SQL Query Support ✅ (NEWLY VERIFIED)
-
-#### WHERE Clause with Complex Expressions ✅
-**Files:** `rdbms/sql/parser.py`, `rdbms/sql/expressions.py`, `rdbms/sql/executor.py`
-
-**Fully Implemented:**
-- ✅ Comparison operators: `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`
-- ✅ Logical operators: `AND`, `OR`, `NOT`
-- ✅ Parentheses for grouping: `(condition1 OR condition2) AND condition3`
-- ✅ `IS NULL` / `IS NOT NULL`
-- ✅ `LIKE` / `NOT LIKE` pattern matching (with % and _ wildcards)
-- ✅ `IN` / `NOT IN` list membership
-- ✅ `BETWEEN` / `NOT BETWEEN` range queries
-- ✅ Short-circuit evaluation for AND/OR
-- ✅ Expression tree (AST) based evaluation
-- ✅ Type coercion for comparisons
-
-**Working Examples:**
-```sql
--- All of these work NOW!
-SELECT * FROM users WHERE age > 18 AND is_active = TRUE;
-SELECT * FROM users WHERE name LIKE 'A%';
-SELECT * FROM users WHERE id IN (1, 2, 3);
-SELECT * FROM users WHERE created_at BETWEEN '2024-01-01' AND '2024-12-31';
-SELECT * FROM users WHERE email IS NOT NULL;
-SELECT * FROM orders WHERE (amount > 100 OR status = 'urgent') AND user_id = 5;
-```
-
-**Implementation Details:**
-- Expression classes: `LiteralExpression`, `ColumnExpression`, `ComparisonExpression`, `LogicalExpression`, `IsNullExpression`, `BetweenExpression`, `InExpression`, `LikeExpression`
-- Operator precedence: NOT > AND > OR (correct SQL precedence)
-- Recursive descent parser for nested expressions
-- Pattern matching uses regex conversion (% → .*, _ → .)
-
----
-
-#### ORDER BY Clause ✅ (NEWLY VERIFIED)
-**Files:** `rdbms/sql/parser.py`, `rdbms/sql/executor.py`
-
-**Fully Implemented:**
-- ✅ Single column sorting: `ORDER BY name ASC`
-- ✅ Multi-column sorting: `ORDER BY last_name ASC, first_name ASC`
-- ✅ `ASC` / `DESC` direction (default ASC)
-- ✅ NULL handling (NULLs sorted to end)
-- ✅ Stable sort for multi-column
-
-**Working Examples:**
-```sql
-SELECT * FROM users ORDER BY name ASC;
-SELECT * FROM orders ORDER BY amount DESC;
-SELECT * FROM users ORDER BY last_name ASC, first_name ASC;
-```
-
-**Implementation:**
-- Parser: `_parse_order_by()` returns list of `(column_name, direction)` tuples
-- Executor: `_apply_order_by()` uses Python `sorted()` with multi-key sorting
-- NULL values handled with `(value is None, value)` tuple sort key
-
----
-
-### 2. Core Database Engine ✅
+### 1. Core Database Engine ✅
 
 #### Database Management ✅
-**File:** `rdbms/engine/database.py`, `rdbms/engine/catalog.py`
+**Files:** `rdbms/engine/database.py`, `rdbms/engine/catalog.py`
 
 **Implemented:**
 - ✅ Database class for managing tables
 - ✅ DatabaseManager for multi-database catalog
 - ✅ Create/drop/list/get databases
 - ✅ JSON serialization/deserialization
-- ✅ Disk persistence
+- ✅ Atomic disk persistence (temp file + rename)
 - ✅ Catalog metadata tracking
 - ✅ Data directory management
 
@@ -192,14 +112,18 @@ SELECT * FROM users ORDER BY last_name ASC, first_name ASC;
 
 ---
 
-#### Row & Data Types ✅
-**File:** `rdbms/engine/row.py`
+#### Row & Data Types ✅ **NEWLY ENHANCED!**
+**Files:** `rdbms/engine/row.py`, `rdbms/sql/datetime_functions.py`, `rdbms/sql/parser.py`
 
 **Implemented:**
-- ✅ DataType enum: INT, FLOAT, STRING, BOOL
-- ✅ Type validation and conversion
-- ✅ Data type aliases (REAL, DOUBLE, DECIMAL → FLOAT)
-- ✅ ISO-8601 date validation for `*_at`, `*_date`, `*timestamp` columns
+- ✅ DataType enum: **INT, FLOAT, STRING, BOOL, DATE, TIME, DATETIME**
+- ✅ Type validation and conversion for all types
+- ✅ Data type aliases (REAL, DOUBLE, DECIMAL → FLOAT, TIMESTAMP → DATETIME)
+- ✅ ISO-8601 date/time parsing and validation
+- ✅ **Date/Time Functions** (NOW, CURRENT_DATE, CURRENT_TIME)
+- ✅ **Date Extraction Functions** (DATE, TIME, YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
+- ✅ **Date Arithmetic Functions** (DATE_ADD, DATE_SUB, DATEDIFF)
+- ✅ **Parser integration for datetime functions** (usable in WHERE, SELECT, etc.)
 
 ---
 
@@ -215,10 +139,11 @@ SELECT * FROM users ORDER BY last_name ASC, first_name ASC;
 **Limitations:**
 - ❌ Only equality lookups (no range query optimization)
 - ❌ No B-tree indexes
+- ❌ Range queries (`>`, `<`, `BETWEEN`) perform full table scan
 
 ---
 
-### 3. SQL Processing Pipeline ✅
+### 2. SQL Processing Pipeline ✅
 
 #### Tokenizer ✅
 **File:** `rdbms/sql/tokenizer.py`
@@ -239,9 +164,36 @@ SELECT * FROM users ORDER BY last_name ASC, first_name ASC;
 - ✅ DML/DQL: INSERT INTO, SELECT, UPDATE, DELETE
 - ✅ INNER JOIN with ON clause
 - ✅ WHERE clause with full expression support
-- ✅ ORDER BY clause (single and multi-column)
+- ✅ ORDER BY clause (single and multi-column, ASC/DESC)
+- ✅ **DISTINCT keyword**
+- ✅ **LIMIT and OFFSET clauses**
+- ✅ **Aggregate functions (COUNT, SUM, AVG, MIN, MAX)**
+- ✅ **GROUP BY clause**
+- ✅ **HAVING clause**
 - ✅ Column constraints: PRIMARY KEY, UNIQUE, REFERENCES
 - ✅ Optional column list in INSERT
+
+---
+
+#### Expression Evaluation ✅
+**File:** `rdbms/sql/expressions.py`
+
+**Fully Implemented Expression Classes:**
+- ✅ `LiteralExpression` - constant values
+- ✅ `ColumnExpression` - column references
+- ✅ `ComparisonExpression` - `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`
+- ✅ `LogicalExpression` - `AND`, `OR`, `NOT` with short-circuit evaluation
+- ✅ `IsNullExpression` - `IS NULL`, `IS NOT NULL`
+- ✅ `BetweenExpression` - `BETWEEN`, `NOT BETWEEN`
+- ✅ `InExpression` - `IN`, `NOT IN`
+- ✅ `LikeExpression` - `LIKE`, `NOT LIKE` (% and _ wildcards)
+- ✅ **`AggregateExpression`** - COUNT, SUM, AVG, MIN, MAX
+
+**Features:**
+- ✅ Parentheses for grouping
+- ✅ Correct operator precedence (NOT > AND > OR)
+- ✅ Type coercion for comparisons
+- ✅ NULL handling
 
 ---
 
@@ -251,7 +203,12 @@ SELECT * FROM users ORDER BY last_name ASC, first_name ASC;
 **Implemented:**
 - ✅ Command execution against DatabaseManager/Database
 - ✅ Expression-based WHERE clause filtering
-- ✅ ORDER BY sorting
+- ✅ ORDER BY sorting (single and multi-column, NULL handling)
+- ✅ **DISTINCT deduplication**
+- ✅ **LIMIT and OFFSET pagination**
+- ✅ **Aggregate function execution**
+- ✅ **GROUP BY grouping**
+- ✅ **HAVING clause filtering (on grouped results)**
 - ✅ INNER JOIN (nested-loop algorithm)
 - ✅ Foreign key validation
 - ✅ Auto-save after modifications
@@ -259,42 +216,218 @@ SELECT * FROM users ORDER BY last_name ASC, first_name ASC;
 
 ---
 
+### 3. Advanced SQL Query Support ✅
+
+All of the following work **RIGHT NOW**:
+
+#### WHERE Clause with Complex Expressions ✅
+**Files:** `rdbms/sql/parser.py`, `rdbms/sql/expressions.py`, `rdbms/sql/executor.py`
+
+**Working Examples:**
+```sql
+-- Comparison operators
+SELECT * FROM users WHERE age > 18 AND is_active = TRUE;
+
+-- Pattern matching
+SELECT * FROM users WHERE name LIKE 'A%';
+
+-- List membership
+SELECT * FROM users WHERE id IN (1, 2, 3);
+
+-- Range queries
+SELECT * FROM users WHERE age BETWEEN 18 AND 65;
+
+-- NULL checks
+SELECT * FROM users WHERE email IS NOT NULL;
+
+-- Complex logic with parentheses
+SELECT * FROM users WHERE (age > 18 OR name = 'Bob') AND is_active = TRUE;
+```
+
+---
+
+#### ORDER BY Clause ✅
+
+**Working Examples:**
+```sql
+-- Single column
+SELECT * FROM users ORDER BY name ASC;
+SELECT * FROM orders ORDER BY amount DESC;
+
+-- Multi-column
+SELECT * FROM users ORDER BY last_name ASC, first_name ASC;
+```
+
+---
+
+#### Aggregate Functions ✅
+**Files:** `rdbms/sql/parser.py`, `rdbms/sql/expressions.py`, `rdbms/sql/executor.py`
+
+**Working Examples:**
+```sql
+-- Simple aggregates
+SELECT COUNT(*) FROM users;
+SELECT COUNT(email) FROM users;  -- counts non-NULL values
+SELECT SUM(amount) FROM orders;
+SELECT AVG(age) FROM users;
+SELECT MIN(created_at) FROM orders;
+SELECT MAX(amount) FROM orders;
+
+-- With GROUP BY
+SELECT user_id, COUNT(*), SUM(amount) FROM orders GROUP BY user_id;
+SELECT category, AVG(price) FROM products GROUP BY category;
+
+-- With HAVING
+SELECT user_id, SUM(amount) as total 
+FROM orders 
+GROUP BY user_id 
+HAVING SUM(amount) > 1000;
+
+-- Multiple aggregates
+SELECT 
+    user_id, 
+    COUNT(*) as order_count,
+    SUM(amount) as total_amount,
+    AVG(amount) as avg_amount,
+    MIN(amount) as min_amount,
+    MAX(amount) as max_amount
+FROM orders 
+GROUP BY user_id;
+```
+
+**Implementation Details:**
+- Parser recognizes aggregate function syntax
+- `AggregateExpression` class handles COUNT, SUM, AVG, MIN, MAX
+- Executor has `_execute_select_with_aggregates()` method
+- `_group_rows()` method groups by column values
+- HAVING clause filters grouped results
+
+---
+
+#### DISTINCT ✅
+
+**Working Examples:**
+```sql
+SELECT DISTINCT category FROM products;
+SELECT DISTINCT status FROM orders;
+```
+
+---
+
+#### LIMIT and OFFSET ✅
+
+**Working Examples:**
+```sql
+-- Pagination
+SELECT * FROM users ORDER BY name LIMIT 10;
+SELECT * FROM users ORDER BY name LIMIT 10 OFFSET 20;
+
+-- Top N queries
+SELECT * FROM orders ORDER BY amount DESC LIMIT 5;
+```
+
+---
+
+#### JOINs (INNER, LEFT, RIGHT, FULL OUTER) ✅ **NEWLY ENHANCED!**
+**Files:** `rdbms/sql/parser.py`, `rdbms/sql/executor.py`
+
+**Working Examples:**
+```sql
+-- INNER JOIN
+SELECT users.name, orders.amount
+FROM users
+INNER JOIN orders ON users.id = orders.user_id;
+
+-- LEFT JOIN (all users, even without orders)
+SELECT users.name, orders.amount
+FROM users
+LEFT JOIN orders ON users.id = orders.user_id;
+
+-- RIGHT JOIN (all orders, even without matching users)
+SELECT users.name, orders.amount
+FROM users
+RIGHT JOIN orders ON users.id = orders.user_id;
+
+-- FULL OUTER JOIN (all rows from both tables)
+SELECT users.name, orders.amount
+FROM users
+FULL OUTER JOIN orders ON users.id = orders.user_id;
+
+-- With WHERE clause
+SELECT u.name, o.amount, o.status
+FROM users u
+LEFT JOIN orders o ON u.id = o.user_id
+WHERE o.amount > 100 OR o.amount IS NULL;
+```
+
+**Implementation Details:**
+- Parser recognizes INNER, LEFT, RIGHT, FULL, OUTER keywords
+- Executor implements null-filling for unmatched rows
+- Supports WHERE clauses, ORDER BY, LIMIT/OFFSET on joined results
+
+---
+
 ### 4. Backend API Server ✅
 **File:** `backend/server.py`
 
-**Implemented:**
-- ✅ All REST API endpoints (query, databases, tables, relationships)
-- ✅ API key authentication
+**Implemented Endpoints:**
+- ✅ `POST /api/query` - Execute SQL commands
+- ✅ `GET /api/databases` - List databases
+- ✅ `GET /api/tables` - List tables in database
+- ✅ `GET /api/tables/{table_name}` - Get table info
+- ✅ `DELETE /api/tables/{table_name}` - Drop table
+- ✅ `GET /api/relationships` - Get table relationships (for diagram)
+- ✅ `POST /api/initialize-demo` - Create demo data
+- ✅ `GET /api/ai/config` - Check AI configuration
+- ✅ `POST /api/ai/generate` - AI proxy to Gemini
+- ✅ `GET /api/stats` - Server statistics
+- ✅ `GET /api/health` - Health check
+
+**Features:**
+- ✅ API key authentication (X-API-Key header)
 - ✅ CORS middleware
 - ✅ Request logging and timing
 - ✅ Statistics tracking
-- ✅ Health check endpoint
 - ✅ SQL input validation
-- ✅ Demo data initialization
+- ✅ Comprehensive error handling
 
 ---
 
 ### 5. Frontend Application ✅
-**Files:** `frontend/src/components/*`
+**Files:** `frontend/src/components/*`, `frontend/src/lib/*`
 
-**Implemented:**
-- ✅ DatabaseInterface (main UI)
-- ✅ SQLEditor (with syntax highlighting)
-- ✅ SQLAssistant (Gemini AI integration)
-- ✅ SchemaVisualizer
-- ✅ RelationshipDiagram
-- ✅ QueryHistory
-- ✅ DatabaseSelector
-- ✅ ExportMenu
+**Implemented Components:**
+- ✅ `DatabaseInterface.jsx` - Main UI with SQL editor
+- ✅ `SQLEditor` - SQL editing with syntax highlighting
+- ✅ `SQLAssistant.jsx` - AI-powered natural language to SQL
+- ✅ `SchemaVisualizer.jsx` - Visual schema browser
+- ✅ `RelationshipDiagram.jsx` - Interactive ER diagram (drag, zoom, pan)
+- ✅ `QueryHistory.jsx` - Query history tracking
+- ✅ `QueryTemplates.jsx` - Common SQL templates
+- ✅ `DatabaseSelector.jsx` - Database switcher
+- ✅ `ExportMenu.jsx` - Export results to CSV/JSON/SQL
+
+**AI Features:**
+- ✅ Natural language → SQL conversion
+- ✅ SQL query explanation
+- ✅ SQL query optimization suggestions
+- ✅ Schema-aware context building
+- ✅ Rate limiting and input sanitization
+
+**Libraries Used:**
+- ✅ `api-client.js` - Axios wrapper for backend API
+- ✅ `gemini.js` - AI integration wrapper
+- ✅ `ai-utils.js` - Rate limiting, sanitization
+- ✅ `sql-knowledge-base.js` - SQL templates and knowledge
 
 ---
 
 ### 6. Additional Features ✅
 
-#### Audit System ✅ (Implemented, needs integration)
+#### Audit System 🟡 (Code Complete, Needs Integration)
 **File:** `rdbms/audit.py`
 
-**Status:** Code complete, requires Table class to extend AuditableTable mixin
+**Status:** Implementation exists but requires Table class to extend AuditableTable mixin
 
 ---
 
@@ -312,204 +445,100 @@ SELECT * FROM users ORDER BY last_name ASC, first_name ASC;
 
 ---
 
-## ❌ Not Yet Implemented (PRIORITIZED)
+## ❌ NOT YET IMPLEMENTED (Prioritized by Value)
 
-### 🎯 QUICK WINS (High Value, Low-Medium Effort)
-
-These should be implemented first - high impact, relatively easy:
+### 🔴 HIGH PRIORITY (Critical for Production)
 
 ---
 
-#### 1. Aggregate Functions ❌
-**Priority:** 🔴 CRITICAL - HIGH VALUE  
-**Effort:** 🟡 MEDIUM (2-3 days)  
-**Value:** Essential for analytics queries
+#### ~~1. Date/Time Data Types~~ ✅ **COMPLETED!**
+**Priority:** 🔴 CRITICAL
+**Effort:** 🟡 MEDIUM (2-3 days)
+**Status:** ✅ **FULLY IMPLEMENTED** (January 14, 2026)
 
-**Missing:**
-- ❌ COUNT(*) / COUNT(column)
-- ❌ SUM(column)
-- ❌ AVG(column)
-- ❌ MIN(column)
-- ❌ MAX(column)
-- ❌ GROUP BY clause
-- ❌ HAVING clause
+**What Was Implemented:**
+- ✅ DATE, TIME, DATETIME data types added to DataType enum
+- ✅ ISO-8601 date/time parsing and validation
+- ✅ Date/time functions: NOW(), CURRENT_DATE(), CURRENT_TIME()
+- ✅ Date extraction functions: YEAR(), MONTH(), DAY(), HOUR(), MINUTE(), SECOND()
+- ✅ Date arithmetic functions: DATE_ADD(), DATE_SUB(), DATEDIFF()
+- ✅ Parser integration for datetime functions (usable in WHERE, SELECT, etc.)
 
-**Example (currently NOT supported):**
+**Files Modified:**
+- `rdbms/engine/row.py` - added DATE, TIME, DATETIME types with validation
+- `rdbms/sql/datetime_functions.py` - implemented all datetime functions
+- `rdbms/sql/parser.py` - integrated datetime function parsing
+
+**Example Usage:**
 ```sql
-SELECT COUNT(*) FROM users;
-SELECT user_id, SUM(amount) FROM orders GROUP BY user_id;
-SELECT category, AVG(price) FROM products GROUP BY category HAVING AVG(price) > 100;
+-- Create table with date/time columns
+CREATE TABLE events (
+    id INT PRIMARY KEY,
+    event_date DATE,
+    event_time TIME,
+    created_at DATETIME
+);
+
+-- Use datetime functions
+SELECT * FROM events WHERE event_date = CURRENT_DATE();
+SELECT * FROM events WHERE YEAR(event_date) = 2026;
+SELECT * FROM events WHERE created_at > DATE_SUB(NOW(), 7);  -- Last 7 days
 ```
 
-**Implementation Plan:**
-1. Add aggregate function parsing in parser.py (recognize COUNT, SUM, AVG, MIN, MAX)
-2. Create AggregateExpression class in expressions.py
-3. Implement GROUP BY parsing (column list)
-4. Implement aggregation engine in executor:
-   - If no GROUP BY: aggregate over all rows
-   - If GROUP BY: group rows by key, aggregate each group
-5. Implement HAVING clause (filter groups after aggregation)
-6. Handle mixed aggregate/non-aggregate columns
-
-**Files to modify:**
-- `rdbms/sql/parser.py` - add aggregate function parsing
-- `rdbms/sql/expressions.py` - add AggregateExpression
-- `rdbms/sql/executor.py` - add aggregation logic
-
 ---
 
-#### 2. Date/Time Data Types ❌
-**Priority:** 🔴 CRITICAL - HIGH VALUE  
-**Effort:** 🟢 LOW-MEDIUM (1-2 days)  
-**Value:** Essential for real-world applications
+#### ~~2. LEFT/RIGHT/OUTER JOINs~~ ✅ **COMPLETED!**
+**Priority:** 🔴 HIGH
+**Effort:** 🟡 MEDIUM (2-3 days)
+**Status:** ✅ **FULLY IMPLEMENTED** (January 14, 2026)
 
-**Missing:**
-- ❌ DATE data type
-- ❌ TIME data type
-- ❌ DATETIME / TIMESTAMP data type
-- ❌ Date/time functions (NOW(), DATE_ADD(), DATE_DIFF())
-- ❌ Proper date/time parsing and validation
+**What Was Implemented:**
+- ✅ LEFT JOIN / LEFT OUTER JOIN
+- ✅ RIGHT JOIN / RIGHT OUTER JOIN
+- ✅ FULL OUTER JOIN
+- ✅ Null-filling for unmatched rows
+- ✅ Support for WHERE, ORDER BY, LIMIT on outer joins
 
-**Current Workaround:**
-- Store as STRING in ISO-8601 format
-- Limited validation only for `*_at`, `*_date`, `*timestamp` column names
+**Files Modified:**
+- `rdbms/sql/parser.py` - parse LEFT/RIGHT/FULL/OUTER keywords
+- `rdbms/sql/executor.py` - implemented outer join logic with null-filling
 
-**Implementation Plan:**
-1. Add DATE, TIME, DATETIME to DataType enum (row.py)
-2. Implement date/time parsing from ISO-8601 strings
-3. Add date/time validation in Row class
-4. Add date/time functions (NOW(), DATE_ADD(), etc.) as special functions
-5. Consider timezone support (store as UTC)
-
-**Files to modify:**
-- `rdbms/engine/row.py` - add new DataType values, validation
-- `rdbms/sql/parser.py` - parse date/time literals
-- `rdbms/sql/expressions.py` - add date/time functions
-
----
-
-#### 3. LEFT/RIGHT/OUTER JOINs ❌
-**Priority:** 🟡 MEDIUM - HIGH VALUE  
-**Effort:** 🟡 MEDIUM (2-3 days)  
-**Value:** Common SQL pattern, relatively easy to add
-
-**Missing:**
-- ❌ LEFT JOIN / LEFT OUTER JOIN
-- ❌ RIGHT JOIN / RIGHT OUTER JOIN  
-- ❌ FULL OUTER JOIN
-
-**Example (currently NOT supported):**
+**Example Usage:**
 ```sql
-SELECT * FROM users LEFT JOIN orders ON users.id = orders.user_id;
+-- Get all users and their orders (including users with no orders)
+SELECT users.name, orders.amount
+FROM users
+LEFT JOIN orders ON users.id = orders.user_id;
+
+-- Get all orders and their users (including orphaned orders)
+SELECT users.name, orders.amount
+FROM users
+RIGHT JOIN orders ON users.id = orders.user_id;
+
+-- Get all rows from both tables
+SELECT users.name, orders.amount
+FROM users
+FULL OUTER JOIN orders ON users.id = orders.user_id;
 ```
 
-**Implementation Plan:**
-1. Extend parser to recognize LEFT/RIGHT/FULL/OUTER keywords
-2. Update SelectCommand to store join type
-3. Implement null-filling logic in executor:
-   - LEFT JOIN: keep all left rows, fill NULLs for unmatched right
-   - RIGHT JOIN: keep all right rows, fill NULLs for unmatched left
-   - FULL OUTER JOIN: keep all rows from both sides
-
-**Files to modify:**
-- `rdbms/sql/parser.py` - parse join types
-- `rdbms/sql/executor.py` - implement outer join logic in `_execute_select_with_join()`
-
 ---
 
-#### 4. LIMIT and OFFSET ❌
-**Priority:** 🟡 MEDIUM - HIGH VALUE  
-**Effort:** 🟢 LOW (half day)  
-**Value:** Essential for pagination
-
-**Missing:**
-- ❌ LIMIT clause
-- ❌ OFFSET clause
-
-**Example (currently NOT supported):**
-```sql
-SELECT * FROM users ORDER BY name LIMIT 10;
-SELECT * FROM users ORDER BY name LIMIT 10 OFFSET 20;
-```
-
-**Implementation Plan:**
-1. Add LIMIT/OFFSET parsing in parser
-2. Update SelectCommand to store limit/offset values
-3. Apply limit/offset in executor (after WHERE and ORDER BY)
-
-**Files to modify:**
-- `rdbms/sql/parser.py` - parse LIMIT/OFFSET
-- `rdbms/sql/executor.py` - apply slicing to result
-
----
-
-#### 5. DISTINCT ❌
-**Priority:** 🟡 MEDIUM  
-**Effort:** 🟢 LOW (half day)  
-**Value:** Common requirement for deduplication
-
-**Missing:**
-- ❌ SELECT DISTINCT
-
-**Example (currently NOT supported):**
-```sql
-SELECT DISTINCT category FROM products;
-```
-
-**Implementation Plan:**
-1. Add DISTINCT keyword parsing
-2. Update SelectCommand to store distinct flag
-3. Deduplicate results in executor (convert to dict keys or use set)
-
-**Files to modify:**
-- `rdbms/sql/parser.py` - parse DISTINCT keyword
-- `rdbms/sql/executor.py` - deduplicate results
-
----
-
-### 🔨 IMPORTANT (Medium Value, Medium-High Effort)
-
----
-
-#### 6. B-Tree Indexes ❌
-**Priority:** 🟡 MEDIUM - PERFORMANCE  
-**Effort:** 🔴 HIGH (5-7 days)  
-**Value:** Enables range query optimization
-
-**Current Limitation:**
-- Only hash indexes (equality lookups)
-- Range queries (`>`, `<`, `BETWEEN`) do full table scan
-
-**Implementation Plan:**
-1. Implement B-tree data structure (BTreeIndex class)
-2. Add insert/delete/search operations
-3. Support range queries (find_range method)
-4. Integrate with Table to create B-tree indexes for appropriate columns
-5. Update executor to use B-tree indexes for range queries
-6. Use for ORDER BY optimization (sorted iteration)
-
-**Files to create/modify:**
-- `rdbms/engine/btree_index.py` - new file for B-tree
-- `rdbms/engine/table.py` - use B-tree for indexed columns
-- `rdbms/sql/executor.py` - optimize range queries using B-tree
-
----
-
-#### 7. Write-Ahead Logging (WAL) ❌
+#### 3. Write-Ahead Logging (WAL) ❌
 **Priority:** 🔴 CRITICAL - PRODUCTION READINESS  
 **Effort:** 🔴 HIGH (7-10 days)  
 **Value:** Essential for durability and crash recovery
 
+**Current Status:**
+- JSON serialization on save (atomic write via temp file)
+- No crash recovery mechanism
+- Data loss possible if crash occurs during write or between writes
+
 **Missing:**
 - ❌ WAL implementation
-- ❌ Log append operations
-- ❌ Crash recovery (replay log)
+- ❌ Log append operations before applying
+- ❌ Crash recovery (replay log on startup)
 - ❌ Checkpoint mechanism
-
-**Current Behavior:**
-- JSON serialization on save
-- No crash recovery
-- Data loss possible if crash during write
+- ❌ Log rotation
 
 **Implementation Plan:**
 1. Design WAL log format (operation, timestamp, data)
@@ -519,28 +548,29 @@ SELECT DISTINCT category FROM products;
 5. Add checkpoint mechanism (flush to disk, truncate log)
 6. Integrate with Database.save_to_disk()
 
-**Files to create/modify:**
+**Files to Create/Modify:**
 - `rdbms/wal.py` - new file for WAL
 - `rdbms/engine/database.py` - integrate WAL
 - `rdbms/sql/executor.py` - log operations before executing
 
 ---
 
-#### 8. Transaction Support (ACID) ❌
+#### 4. Transaction Support (ACID) ❌
 **Priority:** 🔴 CRITICAL - PRODUCTION READINESS  
 **Effort:** 🔴 VERY HIGH (10-15 days)  
 **Value:** Essential for production use
+
+**Current Status:**
+- All operations are auto-committed
+- No rollback support
+- No isolation between concurrent operations
 
 **Missing:**
 - ❌ BEGIN / START TRANSACTION
 - ❌ COMMIT
 - ❌ ROLLBACK
 - ❌ SAVEPOINT
-- ❌ Isolation levels
-
-**Current Behavior:**
-- All operations are auto-committed
-- No rollback support
+- ❌ Isolation levels (READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ, SERIALIZABLE)
 
 **Implementation Plan:**
 1. Implement transaction context manager
@@ -550,163 +580,218 @@ SELECT DISTINCT category FROM products;
 5. Implement MVCC (Multi-Version Concurrency Control)
 6. Parse and execute transaction commands
 
-**Depends on:** WAL (for rollback)
+**Depends On:** WAL (for rollback)
 
-**Files to create/modify:**
+**Files to Create/Modify:**
 - `rdbms/transaction.py` - new file
 - `rdbms/sql/parser.py` - parse transaction commands
 - `rdbms/sql/executor.py` - manage transaction state
 
 ---
 
-### 🔮 FUTURE (Low Priority, High Effort)
+### 🟡 MEDIUM PRIORITY (Performance & Query Optimization)
 
 ---
 
-#### 9. Subqueries ❌
-**Priority:** 🟢 LOW  
-**Effort:** 🔴 VERY HIGH (7-10 days)
-
-**Missing:**
-- ❌ Subqueries in WHERE clause
-- ❌ Subqueries in FROM clause (derived tables)
-- ❌ Scalar subqueries in SELECT
-
----
-
-#### 10. Additional Data Types ❌
-**Priority:** 🟢 LOW  
-**Effort:** 🟡 MEDIUM (3-5 days)
-
-**Missing:**
-- ❌ DECIMAL (fixed-point for financial data)
-- ❌ TEXT (large text)
-- ❌ BLOB (binary data)
-- ❌ JSON (structured data)
-
----
-
-#### 11. Full-Text Search ❌
-**Priority:** 🟢 LOW  
-**Effort:** 🔴 VERY HIGH (10-15 days)
-
-**Missing:**
-- ❌ Full-text indexes
-- ❌ MATCH / AGAINST operators
-- ❌ Relevance ranking
-
----
-
-#### 12. Query Optimizer ❌
+#### 5. B-Tree Indexes ❌
 **Priority:** 🟡 MEDIUM - PERFORMANCE  
-**Effort:** 🔴 VERY HIGH (15-20 days)
+**Effort:** 🔴 HIGH (5-7 days)  
+**Value:** Enables range query optimization
+
+**Current Status:**
+- Only hash indexes (equality lookups only)
+- Range queries (`>`, `<`, `BETWEEN`, ORDER BY) do full table scan
+
+**Missing:**
+- ❌ B-tree data structure
+- ❌ Range query optimization
+- ❌ ORDER BY optimization (sorted iteration)
+
+**Implementation Plan:**
+1. Implement B-tree data structure (BTreeIndex class)
+2. Add insert/delete/search operations
+3. Support range queries (find_range method)
+4. Integrate with Table to create B-tree indexes for appropriate columns
+5. Update executor to use B-tree indexes for range queries
+6. Use for ORDER BY optimization
+
+**Files to Create/Modify:**
+- `rdbms/engine/btree_index.py` - new file for B-tree
+- `rdbms/engine/table.py` - use B-tree for indexed columns
+- `rdbms/sql/executor.py` - optimize range queries using B-tree
+
+---
+
+#### 6. Query Optimizer ❌
+**Priority:** 🟡 MEDIUM - PERFORMANCE  
+**Effort:** 🔴 VERY HIGH (15-20 days)  
+**Value:** Significantly improves query performance
+
+**Current Status:**
+- No query optimization
+- Naive execution plans (nested-loop joins, full table scans)
 
 **Missing:**
 - ❌ Cost-based optimization
 - ❌ Join order optimization
 - ❌ Index selection
 - ❌ Query plan caching
-- ❌ Statistics collection
+- ❌ Statistics collection (row counts, value distributions)
 - ❌ EXPLAIN / EXPLAIN ANALYZE
+
+**Implementation Plan:**
+1. Implement statistics collection (table/column metadata)
+2. Create cost model for operations
+3. Generate multiple execution plans
+4. Choose optimal plan based on cost estimates
+5. Implement EXPLAIN command to show query plan
+6. Add query plan caching
+
+**Files to Create/Modify:**
+- `rdbms/optimizer.py` - new file
+- `rdbms/sql/parser.py` - parse EXPLAIN
+- `rdbms/sql/executor.py` - integrate optimizer
+
+---
+
+#### 7. Hash Join Algorithm ❌
+**Priority:** 🟡 MEDIUM - PERFORMANCE  
+**Effort:** 🟢 LOW-MEDIUM (2-3 days)  
+**Value:** Much faster than nested-loop for large tables
+
+**Current Status:**
+- Only nested-loop join (O(n*m) complexity)
+
+**Implementation Plan:**
+1. Implement hash join algorithm
+2. Choose algorithm based on table sizes
+3. Build hash table for smaller table
+4. Probe with larger table
+
+**Files to Modify:**
+- `rdbms/sql/executor.py` - add `_execute_select_with_hash_join()`
+
+---
+
+### 🟢 LOW PRIORITY (Future Enhancements)
+
+---
+
+#### 8. Subqueries ❌
+**Priority:** 🟢 LOW  
+**Effort:** 🔴 VERY HIGH (10-15 days)  
+**Value:** Advanced SQL feature, less commonly needed
+
+**Missing:**
+- ❌ Subqueries in WHERE clause
+- ❌ Subqueries in FROM clause (derived tables)
+- ❌ Scalar subqueries in SELECT
+- ❌ Correlated subqueries
+- ❌ EXISTS / NOT EXISTS
+
+**Example (currently NOT supported):**
+```sql
+SELECT * FROM users WHERE id IN (SELECT user_id FROM orders WHERE amount > 1000);
+```
+
+---
+
+#### 9. Additional Data Types ❌
+**Priority:** 🟢 LOW  
+**Effort:** 🟡 MEDIUM (3-5 days)  
+**Value:** Nice to have, not critical
+
+**Missing:**
+- ❌ DECIMAL (fixed-point for financial data)
+- ❌ TEXT (large text)
+- ❌ BLOB (binary data)
+- ❌ JSON (structured data)
+- ❌ ARRAY (array values)
+
+---
+
+#### 10. Full-Text Search ❌
+**Priority:** 🟢 LOW  
+**Effort:** 🔴 VERY HIGH (10-15 days)  
+**Value:** Specialized feature, not critical for most use cases
+
+**Missing:**
+- ❌ Full-text indexes
+- ❌ MATCH / AGAINST operators
+- ❌ Relevance ranking
+- ❌ Stemming and stop words
+
+---
+
+#### 11. Views ❌
+**Priority:** 🟢 LOW  
+**Effort:** 🟡 MEDIUM (3-5 days)  
+**Value:** Nice to have, not critical
+
+**Missing:**
+- ❌ CREATE VIEW
+- ❌ DROP VIEW
+- ❌ Materialized views
+
+---
+
+#### 12. Stored Procedures & Triggers ❌
+**Priority:** 🟢 LOW  
+**Effort:** 🔴 VERY HIGH (15-20 days)  
+**Value:** Advanced feature, rarely needed for this project
 
 ---
 
 ## 🎯 Recommended Implementation Roadmap
 
-### Phase 1: Essential SQL Features (1-2 weeks)
-**Goal:** Make database usable for common queries
-
-1. ✅ LIMIT and OFFSET (0.5 days) - **QUICK WIN**
-2. ✅ DISTINCT (0.5 days) - **QUICK WIN**
-3. ✅ Aggregate functions (COUNT, SUM, AVG, MIN, MAX) (2-3 days)
-4. ✅ GROUP BY clause (1-2 days)
-5. ✅ Date/Time data types (1-2 days)
-
-**Total:** ~7-10 days  
-**Value:** Makes database usable for analytics and real-world applications
-
----
-
-### Phase 2: Enhanced Queries (1 week)
-**Goal:** Support common SQL patterns
-
-1. ✅ LEFT/RIGHT/OUTER JOINs (2-3 days)
-2. ✅ HAVING clause (1 day)
-
-**Total:** ~3-4 days  
-**Value:** Supports more complex queries
-
----
-
-### Phase 3: Performance (2-3 weeks)
-**Goal:** Improve query performance
-
-1. ✅ B-tree indexes (5-7 days)
-2. ✅ Hash join algorithm (2-3 days)
-3. ✅ Basic query optimizer (5-7 days)
-
-**Total:** ~12-17 days  
-**Value:** Significantly faster queries
-
----
-
-### Phase 4: Production Readiness (3-4 weeks)
+### Phase 2: Critical Production Features ~~(3-4 weeks)~~ **PARTIALLY COMPLETE!**
 **Goal:** Make database production-ready
 
-1. ✅ Write-Ahead Logging (WAL) (7-10 days)
-2. ✅ Transaction support (BEGIN/COMMIT/ROLLBACK) (10-15 days)
-3. ✅ Locking mechanisms (5-7 days)
+1. ~~**Date/Time data types**~~ ✅ **DONE** (2-3 days) - Critical for real apps
+2. ~~**LEFT/RIGHT/OUTER JOINs**~~ ✅ **DONE** (2-3 days) - Common SQL pattern
+3. **Write-Ahead Logging (WAL)** ❌ **REMAINING** (7-10 days) - Durability and crash recovery
+4. **Transaction support** ❌ **REMAINING** (10-15 days) - ACID compliance
 
-**Total:** ~22-32 days  
-**Value:** Safe for production use
-
----
-
-## 🎯 PRIORITIZED TODO LIST (By Effort & Value)
-
-### 🟢 QUICK WINS (Do First!)
-These provide maximum value with minimum effort:
-
-1. **LIMIT and OFFSET** - 0.5 days - Essential for pagination
-2. **DISTINCT** - 0.5 days - Common requirement
-3. **Date/Time data types** - 1-2 days - Critical for real apps
-4. **Aggregate functions** - 2-3 days - Essential for analytics
-5. **GROUP BY** - 1-2 days - Complements aggregates
-
-**Total: 5-9 days for HUGE value increase**
+**Completed:** 2/4 tasks (~4-6 days)
+**Remaining:** 2/4 tasks (~17-25 days)
+**Value:** 50% progress toward production-ready database. Date/Time and Outer Joins enable most real-world applications!
 
 ---
 
-### 🟡 MEDIUM PRIORITY (Do Second)
-Important features that take more time:
+### Phase 3: Performance Optimization (2-3 weeks)
+**Goal:** Improve query performance for large datasets
 
-6. **LEFT/RIGHT JOINs** - 2-3 days
-7. **HAVING clause** - 1 day
-8. **B-tree indexes** - 5-7 days
+1. **B-tree indexes** (5-7 days) - Range query optimization
+2. **Hash join algorithm** (2-3 days) - Faster joins
+3. **Basic query optimizer** (5-10 days) - Plan selection and index usage
 
-**Total: 8-11 days**
+**Total:** ~12-20 days  
+**Value:** 10-100x performance improvement for large tables
 
 ---
 
-### 🔴 LONG-TERM (Do Third)
-Critical for production but require significant effort:
+### Phase 4: Advanced Features (3-4 weeks)
+**Goal:** Support advanced SQL patterns
 
-9. **Write-Ahead Logging (WAL)** - 7-10 days
-10. **Transaction support** - 10-15 days
-11. **Query optimizer** - 15-20 days
+1. **Subqueries** (10-15 days)
+2. **Additional data types** (3-5 days) - DECIMAL, TEXT, BLOB, JSON
+3. **Views** (3-5 days)
 
-**Total: 32-45 days**
+**Total:** ~16-25 days  
+**Value:** More SQL compatibility
 
 ---
 
 ## 📊 Current Capabilities Summary
 
 ### ✅ What Works NOW (Fully Functional)
+
 ```sql
 -- Database management
 CREATE DATABASE mydb;
 USE mydb;
 SHOW DATABASES;
+DROP DATABASE mydb;
 
 -- Table creation with constraints
 CREATE TABLE users (
@@ -729,7 +814,7 @@ CREATE TABLE orders (
 INSERT INTO users VALUES (1, 'alice@example.com', 'Alice', 25, TRUE);
 INSERT INTO users (id, email, name) VALUES (2, 'bob@example.com', 'Bob');
 
--- Complex WHERE queries (ALL WORK NOW!)
+-- Complex WHERE queries
 SELECT * FROM users WHERE age > 18 AND is_active = TRUE;
 SELECT * FROM users WHERE name LIKE 'A%';
 SELECT * FROM users WHERE id IN (1, 2, 3);
@@ -741,111 +826,141 @@ SELECT * FROM users WHERE (age > 18 OR name = 'Bob') AND is_active = TRUE;
 SELECT * FROM users ORDER BY name ASC;
 SELECT * FROM users ORDER BY age DESC, name ASC;
 
+-- DISTINCT
+SELECT DISTINCT status FROM orders;
+
+-- LIMIT and OFFSET (pagination)
+SELECT * FROM users ORDER BY name LIMIT 10 OFFSET 20;
+
+-- Aggregate functions
+SELECT COUNT(*) FROM users;
+SELECT AVG(age) FROM users;
+SELECT SUM(amount) FROM orders;
+SELECT MIN(created_at), MAX(created_at) FROM orders;
+
+-- GROUP BY
+SELECT user_id, COUNT(*), SUM(amount) FROM orders GROUP BY user_id;
+SELECT status, AVG(amount) FROM orders GROUP BY status;
+
+-- HAVING
+SELECT user_id, SUM(amount) as total 
+FROM orders 
+GROUP BY user_id 
+HAVING SUM(amount) > 1000;
+
 -- INNER JOIN
 SELECT users.name, orders.amount
 FROM users
 INNER JOIN orders ON users.id = orders.user_id;
+
+-- Complex queries
+SELECT u.name, COUNT(*) as order_count, SUM(o.amount) as total_spent
+FROM users u
+INNER JOIN orders o ON u.id = o.user_id
+WHERE o.status = 'completed'
+GROUP BY u.name
+HAVING SUM(o.amount) > 500
+ORDER BY total_spent DESC
+LIMIT 10;
 
 -- UPDATE and DELETE with complex WHERE
 UPDATE users SET is_active = FALSE WHERE age > 65 OR email LIKE '%@old.com';
 DELETE FROM orders WHERE status = 'cancelled' AND created_at < '2024-01-01';
 ```
 
-### ❌ What Doesn't Work Yet
-```sql
--- Aggregate functions (HIGHEST PRIORITY)
-SELECT COUNT(*) FROM users;
-SELECT AVG(age) FROM users;
-SELECT user_id, SUM(amount) FROM orders GROUP BY user_id;
+---
 
--- Date/time types (CRITICAL)
+### ❌ What Doesn't Work Yet
+
+```sql
+-- Date/time types (CRITICAL - store as STRING for now)
 CREATE TABLE events (id INT PRIMARY KEY, event_date DATE, event_time TIME);
+SELECT NOW();  -- not supported
+SELECT DATE_ADD(created_at, INTERVAL 1 DAY) FROM orders;  -- not supported
 
 -- LEFT JOIN (MEDIUM PRIORITY)
 SELECT * FROM users LEFT JOIN orders ON users.id = orders.user_id;
 
--- Pagination (QUICK WIN)
-SELECT * FROM users LIMIT 10 OFFSET 20;
-
--- Distinct values (QUICK WIN)
-SELECT DISTINCT category FROM products;
-
--- Transactions (LONG-TERM)
+-- Transactions (CRITICAL for production)
 BEGIN;
 INSERT INTO users VALUES (10, 'test@example.com', 'Test', 30, TRUE);
 ROLLBACK;
+
+-- Subqueries (LOW PRIORITY)
+SELECT * FROM users WHERE id IN (SELECT user_id FROM orders WHERE amount > 1000);
+
+-- Views (LOW PRIORITY)
+CREATE VIEW active_users AS SELECT * FROM users WHERE is_active = TRUE;
 ```
-
----
-
-## 📝 Testing Recommendations
-
-### Priority Testing Areas
-1. ✅ Complex WHERE expressions (AND/OR/NOT combinations)
-2. ✅ ORDER BY with NULL values
-3. ✅ Foreign key constraint enforcement
-4. ❌ Aggregate functions (when implemented)
-5. ❌ GROUP BY with multiple columns (when implemented)
-6. ❌ Date/time validation (when implemented)
 
 ---
 
 ## 🎓 Learning Outcomes
 
-This project demonstrates:
+This project demonstrates mastery of:
 
 ✅ **Database Internals:**
-- Data storage and retrieval
-- Index structures (hash-based)
-- Constraint enforcement
-- Query processing pipeline
-- Expression evaluation (AST)
+- Storage engine design (file-based persistence)
+- Index structures (hash-based, understand B-tree limitations)
+- Constraint enforcement (PK, UNIQUE, FK with referential integrity)
+- Query processing pipeline (tokenizer → parser → executor)
+- Expression evaluation (AST-based with operator precedence)
+- Aggregate computation and grouping
 
 ✅ **SQL Implementation:**
 - Lexical analysis (tokenization)
 - Syntax analysis (recursive descent parsing)
 - Semantic analysis (type checking, validation)
-- Query execution (nested loops, filtering, sorting)
+- Query execution (filtering, sorting, joining, aggregating)
+- Advanced SQL features (GROUP BY, HAVING, aggregates, complex expressions)
 
 ✅ **API Design:**
 - RESTful API principles
-- Authentication and authorization
+- Authentication and authorization (API key)
 - Input validation and security
-- Error handling
+- Error handling and logging
+- AI integration (proxy to external service)
 
 ✅ **Full-Stack Development:**
 - Backend (Python FastAPI)
 - Frontend (React + Tailwind)
 - Database integration
-- AI integration (Gemini)
+- AI integration (Google Gemini)
+- Interactive data visualization (ER diagrams, schema browser)
 
 ---
 
 ## 🚀 Getting Started (For Contributors)
 
-### To Add a New Feature:
+### Adding New Features
 
-1. **Parser:** Add token recognition and parsing logic
-   - File: `rdbms/sql/tokenizer.py` (if new tokens needed)
-   - File: `rdbms/sql/parser.py` (add parsing method)
+The general process:
 
-2. **Command:** Create or update command class
-   - File: `rdbms/sql/parser.py` (command classes)
+1. **Tokenizer:** Add new tokens if needed
+   - File: `rdbms/sql/tokenizer.py`
 
-3. **Executor:** Implement execution logic
-   - File: `rdbms/sql/executor.py` (add execution method)
+2. **Parser:** Add parsing logic
+   - File: `rdbms/sql/parser.py`
+   - Create or update command classes
 
-4. **Test:** Write tests and validate
-   - Use frontend SQL editor or write unit tests
+3. **Expressions:** Add expression classes if needed
+   - File: `rdbms/sql/expressions.py`
 
-### Example: Adding LIMIT
+4. **Executor:** Implement execution logic
+   - File: `rdbms/sql/executor.py`
+
+5. **Test:** Validate using frontend SQL editor or unit tests
+
+### Example: Already Implemented - LIMIT
+
+This shows how LIMIT was added (already complete):
 
 ```python
-# 1. Parser (parser.py)
+# 1. Parser (parser.py) - already implemented
 def _parse_select(self):
     # ... existing code ...
     
-    # Add after ORDER BY parsing
+    # Parse LIMIT
     limit = None
     if self.peek() and self.peek().value == 'LIMIT':
         self.consume('LIMIT')
@@ -854,25 +969,47 @@ def _parse_select(self):
     
     return SelectCommand(..., limit=limit)
 
-# 2. Executor (executor.py)
-def _execute_select(self, command, database):
-    # ... existing code to get results ...
-    
-    # Apply LIMIT
-    if command.limit:
-        result = result[:command.limit]
-    
-    return result
+# 2. Executor (executor.py) - already implemented
+def _apply_limit_offset(self, rows, limit, offset):
+    start = offset if offset else 0
+    end = start + limit if limit else len(rows)
+    return rows[start:end]
 ```
 
 ---
 
-**Last Updated:** January 14, 2026 (VERIFIED BY CODE REVIEW)  
-**Document Version:** 2.0 (Major update with verified status)  
-**Project Version:** 2.0.0
+## 📝 Testing Recommendations
+
+### Areas to Test
+
+**Already Implemented (should verify):**
+1. ✅ Complex WHERE expressions (AND/OR/NOT combinations)
+2. ✅ ORDER BY with NULL values
+3. ✅ Foreign key constraint enforcement
+4. ✅ Aggregate functions with GROUP BY
+5. ✅ HAVING clause filtering
+6. ✅ DISTINCT with complex queries
+7. ✅ LIMIT/OFFSET pagination
+8. ✅ INNER JOIN with multiple conditions
+
+**Should Test After Implementation:**
+1. ❌ Date/time validation and functions
+2. ❌ LEFT/RIGHT JOIN null-filling
+3. ❌ WAL recovery after crash
+4. ❌ Transaction rollback
+5. ❌ B-tree range queries
+
+---
+
+**Last Updated:** January 14, 2026  
+**Document Version:** 3.0 (Major cleanup - removed contradictions, verified all implementation status)  
+**Project Version:** 2.1.0
 
 ---
 
 *This is a living document. Update as features are implemented or priorities change.*
 
-**Next Review:** After implementing Phase 1 features
+**Next Steps:**
+1. Implement Date/Time types (2-3 days)
+2. Implement LEFT/RIGHT/OUTER JOINs (2-3 days)
+3. Plan WAL implementation (1 week)

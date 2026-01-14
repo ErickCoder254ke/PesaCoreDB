@@ -2,7 +2,7 @@
 
 from enum import Enum
 from typing import Any, Dict
-from datetime import datetime
+from datetime import datetime, date, time
 
 
 class DataType(Enum):
@@ -11,6 +11,9 @@ class DataType(Enum):
     FLOAT = "FLOAT"
     STRING = "STRING"
     BOOL = "BOOL"
+    DATE = "DATE"
+    TIME = "TIME"
+    DATETIME = "DATETIME"
 
     @staticmethod
     def from_string(type_str: str) -> 'DataType':
@@ -18,17 +21,20 @@ class DataType(Enum):
 
         Supports aliases:
         - REAL, DOUBLE, DECIMAL -> FLOAT
+        - TIMESTAMP -> DATETIME
         """
         type_str = type_str.upper()
 
         # Handle aliases
         if type_str in ('REAL', 'DOUBLE', 'DECIMAL'):
             return DataType.FLOAT
+        if type_str == 'TIMESTAMP':
+            return DataType.DATETIME
 
         try:
             return DataType[type_str]
         except KeyError:
-            raise ValueError(f"Unsupported data type: {type_str}. Supported types: INT, FLOAT, STRING, BOOL")
+            raise ValueError(f"Unsupported data type: {type_str}. Supported types: INT, FLOAT, STRING, BOOL, DATE, TIME, DATETIME")
 
 
 def validate_iso_datetime(value: str) -> str:
@@ -53,6 +59,116 @@ def validate_iso_datetime(value: str) -> str:
             f"Invalid datetime format: {value}. "
             "Expected ISO-8601 format (e.g., '2024-01-15T10:30:00Z' or '2024-01-15T10:30:00+00:00')"
         )
+
+
+def parse_date(value: Any) -> str:
+    """Parse and validate date value.
+
+    Args:
+        value: Date value (string or date object)
+
+    Returns:
+        ISO-8601 date string (YYYY-MM-DD)
+
+    Raises:
+        ValueError: If format is invalid
+    """
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value.isoformat()
+
+    if isinstance(value, str):
+        try:
+            # Parse date string (YYYY-MM-DD)
+            parsed_date = datetime.strptime(value, '%Y-%m-%d').date()
+            return parsed_date.isoformat()
+        except ValueError:
+            raise ValueError(
+                f"Invalid date format: {value}. Expected format: YYYY-MM-DD (e.g., '2024-01-15')"
+            )
+
+    raise ValueError(f"Invalid date value: {value}. Expected string in YYYY-MM-DD format")
+
+
+def parse_time(value: Any) -> str:
+    """Parse and validate time value.
+
+    Args:
+        value: Time value (string or time object)
+
+    Returns:
+        ISO-8601 time string (HH:MM:SS)
+
+    Raises:
+        ValueError: If format is invalid
+    """
+    if isinstance(value, time):
+        return value.isoformat()
+
+    if isinstance(value, str):
+        try:
+            # Try parsing with microseconds
+            parsed_time = datetime.strptime(value, '%H:%M:%S.%f').time()
+            return parsed_time.isoformat()
+        except ValueError:
+            try:
+                # Try parsing without microseconds
+                parsed_time = datetime.strptime(value, '%H:%M:%S').time()
+                return parsed_time.isoformat()
+            except ValueError:
+                try:
+                    # Try parsing HH:MM format
+                    parsed_time = datetime.strptime(value, '%H:%M').time()
+                    return parsed_time.isoformat()
+                except ValueError:
+                    raise ValueError(
+                        f"Invalid time format: {value}. Expected format: HH:MM:SS or HH:MM (e.g., '14:30:00' or '14:30')"
+                    )
+
+    raise ValueError(f"Invalid time value: {value}. Expected string in HH:MM:SS format")
+
+
+def parse_datetime(value: Any) -> str:
+    """Parse and validate datetime value.
+
+    Args:
+        value: Datetime value (string or datetime object)
+
+    Returns:
+        ISO-8601 datetime string
+
+    Raises:
+        ValueError: If format is invalid
+    """
+    if isinstance(value, datetime):
+        return value.isoformat()
+
+    if isinstance(value, str):
+        try:
+            # Handle 'Z' timezone indicator
+            normalized_value = value.replace('Z', '+00:00')
+            parsed_datetime = datetime.fromisoformat(normalized_value)
+            return parsed_datetime.isoformat()
+        except ValueError:
+            # Try common datetime formats
+            formats = [
+                '%Y-%m-%d %H:%M:%S',
+                '%Y-%m-%dT%H:%M:%S',
+                '%Y-%m-%d %H:%M:%S.%f',
+                '%Y-%m-%dT%H:%M:%S.%f',
+            ]
+            for fmt in formats:
+                try:
+                    parsed_datetime = datetime.strptime(value, fmt)
+                    return parsed_datetime.isoformat()
+                except ValueError:
+                    continue
+
+            raise ValueError(
+                f"Invalid datetime format: {value}. Expected ISO-8601 format "
+                "(e.g., '2024-01-15T10:30:00' or '2024-01-15 10:30:00')"
+            )
+
+    raise ValueError(f"Invalid datetime value: {value}. Expected ISO-8601 formatted string")
 
 
 class Row:
@@ -113,11 +229,6 @@ class Row:
         elif expected_type == DataType.STRING:
             if not isinstance(value, str):
                 raise ValueError(f"Column '{col_name}' expects STRING, got '{value}'")
-
-            # Validate datetime format for columns with datetime-related names
-            if any(suffix in col_name.lower() for suffix in ['_at', '_date', 'timestamp']):
-                validate_iso_datetime(value)
-
             return value
 
         elif expected_type == DataType.BOOL:
@@ -130,6 +241,24 @@ class Row:
                 elif lower_val in ('false', '0', 'no'):
                     return False
             raise ValueError(f"Column '{col_name}' expects BOOL, got '{value}'")
+
+        elif expected_type == DataType.DATE:
+            try:
+                return parse_date(value)
+            except ValueError as e:
+                raise ValueError(f"Column '{col_name}': {str(e)}")
+
+        elif expected_type == DataType.TIME:
+            try:
+                return parse_time(value)
+            except ValueError as e:
+                raise ValueError(f"Column '{col_name}': {str(e)}")
+
+        elif expected_type == DataType.DATETIME:
+            try:
+                return parse_datetime(value)
+            except ValueError as e:
+                raise ValueError(f"Column '{col_name}': {str(e)}")
 
         raise ValueError(f"Unknown type for column '{col_name}'")
     

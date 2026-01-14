@@ -8,6 +8,7 @@ from .expressions import (
     LogicalExpression, IsNullExpression, BetweenExpression, InExpression, LikeExpression,
     AggregateExpression
 )
+from .datetime_functions import DateTimeFunctionExpression
 
 
 class ParserError(Exception):
@@ -125,7 +126,8 @@ class SelectCommand(ParsedCommand):
 
     def __init__(self, columns: List[str], table_name: str, where_clause: Optional[Expression] = None,
                  join_table: Optional[str] = None, join_left_col: Optional[str] = None,
-                 join_right_col: Optional[str] = None, order_by: Optional[List[Tuple[str, str]]] = None,
+                 join_right_col: Optional[str] = None, join_type: str = 'INNER',
+                 order_by: Optional[List[Tuple[str, str]]] = None,
                  limit: Optional[int] = None, offset: Optional[int] = None,
                  distinct: bool = False,
                  aggregates: Optional[List[Tuple[str, AggregateExpression]]] = None,
@@ -138,6 +140,7 @@ class SelectCommand(ParsedCommand):
         self.join_table = join_table
         self.join_left_col = join_left_col
         self.join_right_col = join_right_col
+        self.join_type = join_type.upper()  # INNER, LEFT, RIGHT, FULL
         self.order_by = order_by  # List of (column_name, direction) tuples
         self.limit = limit  # Max number of rows to return
         self.offset = offset  # Number of rows to skip
@@ -150,7 +153,8 @@ class SelectCommand(ParsedCommand):
         self.where_val = where_val
 
     def __repr__(self) -> str:
-        return f"SelectCommand(columns={self.columns}, table={self.table_name})"
+        join_info = f", join_type={self.join_type}" if self.join_table else ""
+        return f"SelectCommand(columns={self.columns}, table={self.table_name}{join_info})"
 
 
 class UpdateCommand(ParsedCommand):
@@ -527,13 +531,39 @@ class Parser:
         table_name_token = self.consume(expected_type='IDENTIFIER')
         table_name = table_name_token.value
 
-        # Check for JOIN
+        # Check for JOIN (INNER, LEFT, RIGHT, FULL OUTER, etc.)
         join_table = None
         join_left_col = None
         join_right_col = None
+        join_type = 'INNER'  # Default join type
 
-        if self.peek() and self.peek().value == 'INNER':
-            self.consume('INNER')
+        next_token = self.peek()
+        if next_token and next_token.value in ('INNER', 'LEFT', 'RIGHT', 'FULL', 'JOIN'):
+            # Parse join type
+            if next_token.value == 'INNER':
+                self.consume('INNER')
+                join_type = 'INNER'
+            elif next_token.value == 'LEFT':
+                self.consume('LEFT')
+                join_type = 'LEFT'
+                # Check for optional OUTER keyword
+                if self.peek() and self.peek().value == 'OUTER':
+                    self.consume('OUTER')
+            elif next_token.value == 'RIGHT':
+                self.consume('RIGHT')
+                join_type = 'RIGHT'
+                # Check for optional OUTER keyword
+                if self.peek() and self.peek().value == 'OUTER':
+                    self.consume('OUTER')
+            elif next_token.value == 'FULL':
+                self.consume('FULL')
+                join_type = 'FULL'
+                # Require OUTER keyword for FULL OUTER JOIN
+                self.consume('OUTER')
+            elif next_token.value == 'JOIN':
+                # Just "JOIN" defaults to INNER JOIN
+                join_type = 'INNER'
+
             self.consume('JOIN')
 
             join_table_token = self.consume(expected_type='IDENTIFIER')
@@ -607,8 +637,8 @@ class Parser:
 
         return SelectCommand(columns, table_name, where_clause=where_clause,
                            join_table=join_table, join_left_col=join_left_col,
-                           join_right_col=join_right_col, order_by=order_by,
-                           limit=limit, offset=offset, distinct=distinct,
+                           join_right_col=join_right_col, join_type=join_type,
+                           order_by=order_by, limit=limit, offset=offset, distinct=distinct,
                            aggregates=aggregates if aggregates else None,
                            group_by=group_by, having_clause=having_clause)
     
@@ -852,6 +882,10 @@ class Parser:
             self.consume()
             return LiteralExpression(None)
 
+        # Handle datetime function calls
+        if token.type == 'IDENTIFIER' and self._is_datetime_function():
+            return self._parse_datetime_function()
+
         # Handle column reference
         if token.type == 'IDENTIFIER':
             self.consume()
@@ -956,3 +990,51 @@ class Parser:
             return ColumnExpression(token.value)
 
         raise ParserError(f"Unexpected token in aggregate function: {token.value}", token)
+
+    def _is_datetime_function(self) -> bool:
+        """Check if next tokens form a datetime function call."""
+        token = self.peek()
+        if not token or token.type != 'IDENTIFIER':
+            return False
+
+        func_name = token.value.upper()
+        datetime_functions = (
+            'NOW', 'CURRENT_DATE', 'CURRENT_TIME',
+            'DATE', 'TIME', 'YEAR', 'MONTH', 'DAY',
+            'HOUR', 'MINUTE', 'SECOND',
+            'DATE_ADD', 'DATE_SUB', 'DATEDIFF'
+        )
+        if func_name not in datetime_functions:
+            return False
+
+        # Check for opening parenthesis
+        next_token = self.peek(1)
+        return next_token and next_token.type == 'LPAREN'
+
+    def _parse_datetime_function(self) -> DateTimeFunctionExpression:
+        """Parse datetime function (NOW, DATE_ADD, etc.).
+
+        Returns:
+            DateTimeFunctionExpression
+        """
+        func_token = self.consume(expected_type='IDENTIFIER')
+        func_name = func_token.value.upper()
+
+        self.consume('(')
+
+        arguments = []
+
+        # Parse arguments
+        if self.peek() and self.peek().type != 'RPAREN':
+            while True:
+                arg_expr = self._parse_primary_expression()
+                arguments.append(arg_expr)
+
+                if self.peek() and self.peek().value == ',':
+                    self.consume(',')
+                else:
+                    break
+
+        self.consume(')')
+
+        return DateTimeFunctionExpression(func_name, arguments)

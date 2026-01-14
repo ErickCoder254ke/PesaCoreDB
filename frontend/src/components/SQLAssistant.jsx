@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 const SQLAssistant = ({ tables = [], onInsertQuery, currentDatabase = "default", className }) => {
   const [userInput, setUserInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [aiConfigured, setAiConfigured] = useState(null); // null = checking, true/false = result
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -59,6 +60,27 @@ const SQLAssistant = ({ tables = [], onInsertQuery, currentDatabase = "default",
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Check AI configuration on mount
+  useEffect(() => {
+    const checkAI = async () => {
+      try {
+        const { checkAIConfiguration } = await import('@/lib/gemini');
+        const config = await checkAIConfiguration();
+        console.log('🤖 AI Configuration Check:', config);
+        setAiConfigured(config.enabled);
+
+        if (!config.enabled) {
+          console.warn('⚠️ AI is not configured:', config.message);
+        }
+      } catch (error) {
+        console.error('❌ Failed to check AI configuration:', error);
+        setAiConfigured(false);
+      }
+    };
+
+    checkAI();
+  }, []);
 
   const schemaContext = buildSchemaContext(tables);
 
@@ -157,11 +179,20 @@ const SQLAssistant = ({ tables = [], onInsertQuery, currentDatabase = "default",
   const getErrorMessage = (response) => {
     switch (response.errorType) {
       case "api_key":
-        return "⚠️ AI is not configured. Please add your Gemini API key to use this feature.\n\nYou can still use the templates in the middle panel!";
+        return "⚠️ AI is not configured on the backend.\n\n" +
+               "Administrator: Set the GEMINI_API_KEY environment variable on your backend server.\n\n" +
+               "You can still use the SQL templates in the middle panel!";
       case "quota":
         return "⏱️ API rate limit reached. Please wait a moment and try again.";
       case "network":
-        return "🌐 Network error. Please check your connection and try again.";
+        return "🌐 Network error. Could not connect to backend.\n\n" +
+               "Please check:\n" +
+               "• Backend server is running\n" +
+               "• REACT_APP_BACKEND_URL is configured correctly\n" +
+               "• No CORS issues in browser console";
+      case "auth":
+        return "🔒 Authentication failed.\n\n" +
+               "Check that your API key is configured correctly.";
       case "safety":
         return "⚠️ Your request was blocked for safety reasons. Please rephrase your question.";
       default:

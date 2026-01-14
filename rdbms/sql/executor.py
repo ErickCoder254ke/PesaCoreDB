@@ -348,7 +348,7 @@ class Executor:
                 raise ExecutorError(error_msg)
     
     def _execute_select_with_join(self, command: SelectCommand, database: Database) -> List[Dict[str, Any]]:
-        """Execute SELECT command with INNER JOIN."""
+        """Execute SELECT command with JOIN (supports INNER, LEFT, RIGHT, FULL OUTER)."""
         try:
             # Get both tables
             left_table = database.get_table(command.table_name)
@@ -383,49 +383,58 @@ class Executor:
         if right_col_name not in right_table.schema:
             raise ExecutorError(f"ColumnNotFoundError: column '{right_col_name}' does not exist in table '{right_table_name}'")
 
-        # Perform join
-        result = []
+        # Get all rows from both tables
         left_rows = left_table.select()
         right_rows = right_table.select()
 
-        for left_row in left_rows:
-            left_join_value = left_row[left_col_name]
+        # Track which rows have been matched (for outer joins)
+        matched_left_indices = set()
+        matched_right_indices = set()
 
-            for right_row in right_rows:
+        # Perform join based on join type
+        result = []
+        join_type = command.join_type.upper()
+
+        # First pass: Find all matches
+        for left_idx, left_row in enumerate(left_rows):
+            left_join_value = left_row[left_col_name]
+            has_match = False
+
+            for right_idx, right_row in enumerate(right_rows):
                 right_join_value = right_row[right_col_name]
 
                 if left_join_value == right_join_value:
-                    # Merge rows with table prefixes
-                    joined_row = {}
-                    for col, val in left_row.items():
-                        joined_row[f"{left_table_name}.{col}"] = val
-                    for col, val in right_row.items():
-                        joined_row[f"{right_table_name}.{col}"] = val
+                    has_match = True
+                    matched_left_indices.add(left_idx)
+                    matched_right_indices.add(right_idx)
 
-                    # Project requested columns
-                    if command.columns:
-                        projected_row = {}
-                        for col in command.columns:
-                            # Check if column has table prefix
-                            if '.' in col:
-                                if col in joined_row:
-                                    projected_row[col] = joined_row[col]
-                                else:
-                                    raise ExecutorError(f"ColumnNotFoundError: column '{col}' not found in join result")
-                            else:
-                                # Try to find column in either table
-                                left_key = f"{left_table_name}.{col}"
-                                right_key = f"{right_table_name}.{col}"
+                    # Create joined row with table prefixes
+                    joined_row = self._create_joined_row(
+                        left_row, right_row,
+                        left_table_name, right_table_name,
+                        command.columns
+                    )
+                    result.append(joined_row)
 
-                                if left_key in joined_row:
-                                    projected_row[col] = joined_row[left_key]
-                                elif right_key in joined_row:
-                                    projected_row[col] = joined_row[right_key]
-                                else:
-                                    raise ExecutorError(f"ColumnNotFoundError: column '{col}' not found in join result")
-                        result.append(projected_row)
-                    else:
-                        result.append(joined_row)
+            # LEFT or FULL OUTER JOIN: Include unmatched left rows with NULL for right columns
+            if not has_match and join_type in ('LEFT', 'FULL'):
+                joined_row = self._create_joined_row(
+                    left_row, None,
+                    left_table_name, right_table_name,
+                    command.columns
+                )
+                result.append(joined_row)
+
+        # RIGHT or FULL OUTER JOIN: Include unmatched right rows with NULL for left columns
+        if join_type in ('RIGHT', 'FULL'):
+            for right_idx, right_row in enumerate(right_rows):
+                if right_idx not in matched_right_indices:
+                    joined_row = self._create_joined_row(
+                        None, right_row,
+                        left_table_name, right_table_name,
+                        command.columns
+                    )
+                    result.append(joined_row)
 
         # Apply ORDER BY if specified
         if command.order_by:
@@ -439,7 +448,67 @@ class Executor:
         result = self._apply_limit_offset(result, command.limit, command.offset)
 
         return result
-    
+
+    def _create_joined_row(self, left_row: Optional[Dict[str, Any]], right_row: Optional[Dict[str, Any]],
+                          left_table_name: str, right_table_name: str,
+                          columns: Optional[List[str]]) -> Dict[str, Any]:
+        """Create a joined row from left and right rows (handles NULL for outer joins).
+
+        Args:
+            left_row: Left table row (None for unmatched in RIGHT JOIN)
+            right_row: Right table row (None for unmatched in LEFT JOIN)
+            left_table_name: Name of left table
+            right_table_name: Name of right table
+            columns: List of columns to project (None for all columns)
+
+        Returns:
+            Joined row dictionary
+        """
+        # Build full joined row with table prefixes
+        joined_row = {}
+
+        if left_row:
+            for col, val in left_row.items():
+                joined_row[f"{left_table_name}.{col}"] = val
+        else:
+            # Fill with NULLs for unmatched left row
+            # We don't know the columns, but we'll handle this in projection
+            pass
+
+        if right_row:
+            for col, val in right_row.items():
+                joined_row[f"{right_table_name}.{col}"] = val
+        else:
+            # Fill with NULLs for unmatched right row
+            pass
+
+        # Project requested columns
+        if columns:
+            projected_row = {}
+            for col in columns:
+                # Check if column has table prefix
+                if '.' in col:
+                    if col in joined_row:
+                        projected_row[col] = joined_row[col]
+                    else:
+                        # Column not found - set to NULL (for outer join)
+                        projected_row[col] = None
+                else:
+                    # Try to find column in either table
+                    left_key = f"{left_table_name}.{col}"
+                    right_key = f"{right_table_name}.{col}"
+
+                    if left_key in joined_row:
+                        projected_row[col] = joined_row[left_key]
+                    elif right_key in joined_row:
+                        projected_row[col] = joined_row[right_key]
+                    else:
+                        # Column not found - set to NULL (for outer join)
+                        projected_row[col] = None
+            return projected_row
+        else:
+            return joined_row
+
     def _execute_update(self, command: UpdateCommand, database: Database) -> str:
         """Execute UPDATE command."""
         try:
