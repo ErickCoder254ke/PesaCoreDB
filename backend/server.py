@@ -107,9 +107,27 @@ class ServerStats(BaseModel):
     uptime: str
     server_start_time: str
 
+class AIRequest(BaseModel):
+    prompt: str
+    context: Optional[str] = None
+    system_prompt: Optional[str] = None
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = 1024
+
+class AIResponse(BaseModel):
+    success: bool
+    message: Optional[str] = None
+    error: Optional[str] = None
+    error_type: Optional[str] = None
+
 # Security Configuration
 API_KEY = os.getenv("API_KEY", "")
 REQUIRE_API_KEY = os.getenv("REQUIRE_API_KEY", "true").lower() == "true"
+
+# AI Configuration
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+AI_ENABLED = bool(GEMINI_API_KEY and GEMINI_API_KEY != "your_api_key_here")
 
 # Public endpoints that don't require authentication
 PUBLIC_ENDPOINTS = ["/docs", "/redoc", "/openapi.json"]
@@ -209,8 +227,155 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "databases": len(database_manager.list_databases()),
-        "uptime": str(datetime.now() - datetime.fromisoformat(stats["server_start_time"]))
+        "uptime": str(datetime.now() - datetime.fromisoformat(stats["server_start_time"])),
+        "ai_enabled": AI_ENABLED
     }
+
+@api_router.get("/ai/config")
+async def get_ai_config():
+    """Get AI configuration status"""
+    return {
+        "enabled": AI_ENABLED,
+        "model": GEMINI_MODEL if AI_ENABLED else None,
+        "message": "AI features available" if AI_ENABLED else "AI not configured - set GEMINI_API_KEY environment variable"
+    }
+
+@api_router.post("/ai/generate", response_model=AIResponse)
+async def generate_ai_response(request: AIRequest):
+    """
+    Generate AI response using Gemini API (proxied through backend)
+    This keeps the API key secure on the server side
+    """
+    if not AI_ENABLED:
+        return AIResponse(
+            success=False,
+            error="AI is not configured. Set GEMINI_API_KEY environment variable.",
+            error_type="api_key"
+        )
+
+    try:
+        import httpx
+
+        # Build the prompt
+        full_prompt = ""
+        if request.system_prompt:
+            full_prompt += f"{request.system_prompt}\n\n"
+        if request.context:
+            full_prompt += f"Context:\n{request.context}\n\n"
+        full_prompt += f"User Query: {request.prompt}"
+
+        # Make request to Gemini API
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{api_url}?key={GEMINI_API_KEY}",
+                json={
+                    "contents": [{
+                        "parts": [{
+                            "text": full_prompt
+                        }]
+                    }],
+                    "generationConfig": {
+                        "temperature": request.temperature,
+                        "maxOutputTokens": request.max_tokens,
+                        "topP": 0.95,
+                        "topK": 40,
+                    },
+                    "safetySettings": [
+                        {
+                            "category": "HARM_CATEGORY_HARASSMENT",
+                            "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                        },
+                        {
+                            "category": "HARM_CATEGORY_HATE_SPEECH",
+                            "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                        },
+                        {
+                            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                        },
+                        {
+                            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                            "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                        }
+                    ]
+                }
+            )
+
+        if response.status_code == 429:
+            return AIResponse(
+                success=False,
+                error="Rate limit exceeded. Please try again in a moment.",
+                error_type="quota"
+            )
+
+        if response.status_code == 403:
+            logger.error("Gemini API key is invalid or has insufficient permissions")
+            return AIResponse(
+                success=False,
+                error="API key is invalid or has insufficient permissions",
+                error_type="api_key"
+            )
+
+        if response.status_code != 200:
+            error_data = response.json() if response.content else {}
+            error_message = error_data.get("error", {}).get("message", f"API error: {response.status_code}")
+            logger.error(f"Gemini API error: {error_message}")
+            return AIResponse(
+                success=False,
+                error=error_message,
+                error_type="api_error"
+            )
+
+        data = response.json()
+
+        # Extract response text
+        if data.get("candidates") and data["candidates"][0].get("content", {}).get("parts"):
+            response_text = data["candidates"][0]["content"]["parts"][0].get("text", "")
+
+            # Check if response was blocked
+            if data["candidates"][0].get("finishReason") == "SAFETY":
+                return AIResponse(
+                    success=False,
+                    error="Response was blocked due to safety concerns. Please rephrase your question.",
+                    error_type="safety"
+                )
+
+            return AIResponse(
+                success=True,
+                message=response_text.strip()
+            )
+
+        # Unexpected response format
+        logger.error(f"Unexpected Gemini API response format: {data}")
+        return AIResponse(
+            success=False,
+            error="Received unexpected response format from AI service",
+            error_type="format_error"
+        )
+
+    except httpx.TimeoutException:
+        logger.error("Gemini API request timed out")
+        return AIResponse(
+            success=False,
+            error="Request timed out. Please try again.",
+            error_type="timeout"
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Network error calling Gemini API: {str(e)}")
+        return AIResponse(
+            success=False,
+            error="Network error. Please check your connection.",
+            error_type="network"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in AI generation: {str(e)}", exc_info=True)
+        return AIResponse(
+            success=False,
+            error=f"An error occurred: {str(e)}",
+            error_type="exception"
+        )
 
 @api_router.get("/stats", response_model=ServerStats)
 async def get_stats():
@@ -685,6 +850,13 @@ async def startup_event():
     logger.info(f"   API Key Authentication: {'✅ ENABLED' if REQUIRE_API_KEY else '⚠️ DISABLED'}")
     logger.info(f"   API Key Configured: {'✅ YES' if API_KEY else '❌ NO - SERVER WILL NOT START PROPERLY!'}")
     logger.info(f"   CORS Origins: {os.getenv('CORS_ORIGINS', '*')}")
+    logger.info("=" * 80)
+    logger.info("🤖 AI Configuration:")
+    logger.info(f"   AI Features: {'✅ ENABLED' if AI_ENABLED else '⚠️ DISABLED'}")
+    logger.info(f"   Gemini API Key: {'✅ Configured' if GEMINI_API_KEY else '❌ Not set'}")
+    logger.info(f"   Model: {GEMINI_MODEL if AI_ENABLED else 'N/A'}")
+    if not AI_ENABLED:
+        logger.info("   💡 To enable AI: Set GEMINI_API_KEY environment variable")
     logger.info("=" * 80)
 
     if REQUIRE_API_KEY and not API_KEY:

@@ -1,4 +1,5 @@
 import { GEMINI_CONFIG, AI_CONFIG } from './config';
+import apiClient from './api-client';
 
 /**
  * Validate user query before sending to AI
@@ -13,9 +14,9 @@ export function validateUserQuery(query) {
   }
 
   if (query.length > AI_CONFIG.maxQueryLength) {
-    return { 
-      valid: false, 
-      error: `Query too long (max ${AI_CONFIG.maxQueryLength} characters)` 
+    return {
+      valid: false,
+      error: `Query too long (max ${AI_CONFIG.maxQueryLength} characters)`
     };
   }
 
@@ -23,7 +24,20 @@ export function validateUserQuery(query) {
 }
 
 /**
- * Generate AI response using Gemini API
+ * Check if AI is configured on the backend
+ */
+export async function checkAIConfiguration() {
+  try {
+    const response = await apiClient.get('/ai/config');
+    return response.data;
+  } catch (error) {
+    console.error('Error checking AI configuration:', error);
+    return { enabled: false, message: 'Could not connect to backend' };
+  }
+}
+
+/**
+ * Generate AI response using backend proxy (more secure)
  * @param {string} userQuery - The user's question or request
  * @param {string} contextData - Context information (database schema, etc.)
  * @param {object} options - Additional options
@@ -34,15 +48,6 @@ export async function generateAIResponse(userQuery, contextData = '', options = 
     maxOutputTokens = AI_CONFIG.maxOutputTokens,
     systemPrompt = '',
   } = options;
-
-  // Check API key
-  if (!GEMINI_CONFIG.apiKey || GEMINI_CONFIG.apiKey === 'your_gemini_api_key_here') {
-    return {
-      success: false,
-      error: 'Gemini API key is not configured. Please set REACT_APP_GEMINI_API_KEY in your environment.',
-      errorType: 'api_key',
-    };
-  }
 
   // Validate query
   const validation = validateUserQuery(userQuery);
@@ -55,130 +60,61 @@ export async function generateAIResponse(userQuery, contextData = '', options = 
   }
 
   try {
-    // Build the prompt with context
-    const fullPrompt = buildPrompt(userQuery, contextData, systemPrompt);
+    console.log('🤖 Sending request to AI (via backend proxy)...');
 
-    console.log('🤖 Sending request to Gemini AI...');
+    const response = await apiClient.post('/ai/generate', {
+      prompt: userQuery,
+      context: contextData,
+      system_prompt: systemPrompt,
+      temperature: temperature,
+      max_tokens: maxOutputTokens,
+    });
 
-    const response = await fetch(
-      `${GEMINI_CONFIG.apiUrl}?key=${GEMINI_CONFIG.apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: fullPrompt
-            }]
-          }],
-          generationConfig: {
-            temperature,
-            maxOutputTokens,
-            topP: 0.95,
-            topK: 40,
-          },
-          safetySettings: [
-            {
-              category: 'HARM_CATEGORY_HARASSMENT',
-              threshold: 'BLOCK_MEDIUM_AND_ABOVE'
-            },
-            {
-              category: 'HARM_CATEGORY_HATE_SPEECH',
-              threshold: 'BLOCK_MEDIUM_AND_ABOVE'
-            },
-            {
-              category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-              threshold: 'BLOCK_MEDIUM_AND_ABOVE'
-            },
-            {
-              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-              threshold: 'BLOCK_MEDIUM_AND_ABOVE'
-            }
-          ]
-        })
-      }
-    );
+    const data = response.data;
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('❌ Gemini API Error:', errorData);
-
-      // Handle specific error types
-      if (response.status === 429) {
-        return {
-          success: false,
-          error: 'Rate limit exceeded. Please try again in a moment.',
-          errorType: 'quota',
-        };
-      }
-
-      if (response.status === 400) {
-        return {
-          success: false,
-          error: errorData.error?.message || 'Invalid request to AI service',
-          errorType: 'validation',
-        };
-      }
-
-      if (response.status === 403) {
-        return {
-          success: false,
-          error: 'API key is invalid or has insufficient permissions',
-          errorType: 'api_key',
-        };
-      }
-
-      return {
-        success: false,
-        error: errorData.error?.message || `API error: ${response.status}`,
-        errorType: 'api_error',
-      };
-    }
-
-    const data = await response.json();
-    console.log('✅ Received response from Gemini');
-
-    // Extract response text
-    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-      const responseText = data.candidates[0].content.parts[0].text;
-      
-      // Check if response was blocked
-      if (data.candidates[0].finishReason === 'SAFETY') {
-        return {
-          success: false,
-          error: 'Response was blocked due to safety concerns. Please rephrase your question.',
-          errorType: 'safety',
-        };
-      }
-
+    if (data.success) {
+      console.log('✅ Received response from AI');
       return {
         success: true,
-        message: responseText.trim(),
-        metadata: {
-          finishReason: data.candidates[0].finishReason,
-          safetyRatings: data.candidates[0].safetyRatings,
-        },
+        message: data.message,
+      };
+    } else {
+      console.error('❌ AI Error:', data.error);
+      return {
+        success: false,
+        error: data.error || 'AI request failed',
+        errorType: data.error_type || 'api_error',
       };
     }
 
-    // Unexpected response format
-    console.error('❌ Unexpected response format:', data);
-    return {
-      success: false,
-      error: 'Received unexpected response format from AI service',
-      errorType: 'format_error',
-    };
-
   } catch (error) {
-    console.error('❌ Error calling Gemini API:', error);
+    console.error('❌ Error calling AI API:', error);
 
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+    // Check if it's a network error
+    if (error.code === 'ERR_NETWORK' || !error.response) {
       return {
         success: false,
-        error: 'Network error. Please check your internet connection.',
+        error: 'Network error. Please check your connection to the backend.',
         errorType: 'network',
+      };
+    }
+
+    // Check for specific HTTP errors
+    if (error.response) {
+      const { status, data } = error.response;
+
+      if (status === 403) {
+        return {
+          success: false,
+          error: 'Authentication failed. Check backend API key configuration.',
+          errorType: 'auth',
+        };
+      }
+
+      return {
+        success: false,
+        error: data?.error || `Request failed with status ${status}`,
+        errorType: data?.error_type || 'api_error',
       };
     }
 

@@ -4,16 +4,15 @@
 
 // Debug: Log environment variables
 console.log('🔍 Environment Check:', {
-  hasApiKey: !!process.env.REACT_APP_GEMINI_API_KEY,
-  apiKeyPrefix: process.env.REACT_APP_GEMINI_API_KEY?.substring(0, 10) + '...',
-  backendUrl: process.env.REACT_APP_BACKEND_URL
+  backendUrl: process.env.REACT_APP_BACKEND_URL,
+  useBackendAI: true
 });
 
 // Gemini AI Configuration
+// Now proxied through backend for security
 export const GEMINI_CONFIG = {
-  apiKey: process.env.REACT_APP_GEMINI_API_KEY || 'your_gemini_api_key_here',
+  useBackendProxy: true, // Always use backend proxy for AI requests
   model: 'gemini-flash-latest',
-  apiUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
   maxRetries: 2,
   timeout: 30000, // 30 seconds
 };
