@@ -927,7 +927,8 @@ class Parser:
     def _is_aggregate_function(self) -> bool:
         """Check if next tokens form an aggregate function call."""
         token = self.peek()
-        if not token or token.type != 'IDENTIFIER':
+        # Accept both IDENTIFIER and KEYWORD tokens for aggregate functions
+        if not token or token.type not in ('IDENTIFIER', 'KEYWORD'):
             return False
 
         func_name = token.value.upper()
@@ -944,8 +945,16 @@ class Parser:
         Returns:
             Tuple of (alias, AggregateExpression)
         """
-        func_token = self.consume(expected_type='IDENTIFIER')
+        # Accept both IDENTIFIER and KEYWORD tokens for function name
+        func_token = self.consume()
+        if func_token.type not in ('IDENTIFIER', 'KEYWORD'):
+            raise ParserError(f"Expected aggregate function name", func_token)
+
         func_name = func_token.value.upper()
+
+        # Validate it's a recognized aggregate function
+        if func_name not in ('COUNT', 'SUM', 'AVG', 'MIN', 'MAX'):
+            raise ParserError(f"Unknown aggregate function: {func_name}", func_token)
 
         self.consume('(')
 
@@ -965,7 +974,10 @@ class Parser:
         self.consume(')')
 
         # Create aggregate expression
-        agg_expr = AggregateExpression(func_name, expression, is_star)
+        try:
+            agg_expr = AggregateExpression(func_name, expression, is_star)
+        except ValueError as e:
+            raise ParserError(str(e), func_token)
 
         # Generate alias (e.g., "COUNT(*)", "SUM(amount)")
         if is_star:
@@ -978,16 +990,36 @@ class Parser:
     def _parse_aggregate_expression_argument(self) -> Expression:
         """Parse the argument inside an aggregate function.
 
-        This is simpler than full expression parsing - just column references for now.
+        Supports:
+        - Simple column names: COUNT(id)
+        - Table-qualified columns: COUNT(users.id)
+        - Keyword tokens: (in case column names match SQL keywords)
         """
         token = self.peek()
 
         if not token:
             raise ParserError("Expected column name in aggregate function")
 
-        if token.type == 'IDENTIFIER':
-            self.consume()
-            return ColumnExpression(token.value)
+        # Accept both IDENTIFIER and KEYWORD tokens for column names
+        if token.type in ('IDENTIFIER', 'KEYWORD'):
+            first_token = self.consume()
+            first_name = first_token.value
+
+            # Check for table.column syntax
+            if self.peek() and self.peek().type == 'DOT':
+                self.consume('.')  # Consume the dot
+                second_token = self.peek()
+
+                if not second_token or second_token.type not in ('IDENTIFIER', 'KEYWORD'):
+                    raise ParserError("Expected column name after '.'", second_token)
+
+                self.consume()
+                second_name = second_token.value
+                # Return fully qualified column name
+                return ColumnExpression(f"{first_name}.{second_name}")
+
+            # Simple column reference
+            return ColumnExpression(first_name)
 
         raise ParserError(f"Unexpected token in aggregate function: {token.value}", token)
 

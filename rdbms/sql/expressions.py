@@ -294,13 +294,28 @@ class AggregateExpression(Expression):
         self.is_star = is_star
 
         if self.function not in ('COUNT', 'SUM', 'AVG', 'MIN', 'MAX'):
-            raise ValueError(f"Invalid aggregate function: {function}")
+            raise ValueError(
+                f"Invalid aggregate function: {function}. "
+                f"Supported aggregate functions are: COUNT, SUM, AVG, MIN, MAX"
+            )
 
         if self.function == 'COUNT' and not is_star and expression is None:
-            raise ValueError("COUNT requires either * or a column")
+            raise ValueError(
+                f"COUNT requires either * or a column name. "
+                f"Usage: COUNT(*) or COUNT(column_name)"
+            )
 
         if self.function != 'COUNT' and expression is None:
-            raise ValueError(f"{self.function} requires a column")
+            raise ValueError(
+                f"{self.function} requires a column name. "
+                f"Usage: {self.function}(column_name)"
+            )
+
+        if self.function != 'COUNT' and is_star:
+            raise ValueError(
+                f"{self.function}(*) is not valid. Only COUNT(*) is allowed. "
+                f"Use {self.function}(column_name) instead."
+            )
 
     def evaluate(self, row: Dict[str, Any]) -> Any:
         """Aggregate expressions cannot be evaluated on single rows.
@@ -308,8 +323,9 @@ class AggregateExpression(Expression):
         This method should not be called directly. Use aggregate() instead.
         """
         raise NotImplementedError(
-            f"Aggregate function {self.function} cannot be evaluated on a single row. "
-            "Use aggregate() method instead."
+            f"Aggregate function {self.function}() cannot be evaluated on a single row. "
+            f"Aggregate functions operate on multiple rows and return a single value. "
+            f"This is an internal error - please report this issue."
         )
 
     def aggregate(self, rows: list) -> Any:
@@ -359,15 +375,21 @@ class AggregateExpression(Expression):
             # Sum numeric values
             try:
                 return sum(values)
-            except TypeError:
-                raise ValueError(f"SUM requires numeric values")
+            except TypeError as e:
+                raise ValueError(
+                    f"SUM requires numeric values. "
+                    f"Cannot compute SUM on column with non-numeric data types."
+                )
 
         elif self.function == 'AVG':
             # Average numeric values
             try:
                 return sum(values) / len(values)
-            except TypeError:
-                raise ValueError(f"AVG requires numeric values")
+            except TypeError as e:
+                raise ValueError(
+                    f"AVG requires numeric values. "
+                    f"Cannot compute AVG on column with non-numeric data types."
+                )
 
         elif self.function == 'MIN':
             return min(values)
