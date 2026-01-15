@@ -445,5 +445,443 @@ class TestAggregateParserEdgeCases(unittest.TestCase):
             self.assertEqual(len(command.aggregates), 1)
 
 
+class TestColumnAliasing(unittest.TestCase):
+    """Test column aliasing with AS keyword."""
+
+    def setUp(self):
+        """Set up test database and tables."""
+        self.db_manager = DatabaseManager()
+        self.db_manager.create_database("test_db")
+
+        self.tokenizer = Tokenizer()
+        self.parser = Parser()
+        self.executor = Executor(self.db_manager)
+        self.executor.execute(self.parser.parse(self.tokenizer.tokenize("USE test_db")))
+
+        # Create users table
+        sql = """
+        CREATE TABLE users (
+            user_id INT PRIMARY KEY,
+            username STRING,
+            age INT,
+            salary INT
+        )
+        """
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        self.executor.execute(command)
+
+        # Insert test data
+        test_data = [
+            "INSERT INTO users VALUES (1, 'Alice', 30, 50000)",
+            "INSERT INTO users VALUES (2, 'Bob', 25, 60000)",
+            "INSERT INTO users VALUES (3, 'Charlie', 35, 55000)",
+        ]
+        for sql in test_data:
+            tokens = self.tokenizer.tokenize(sql)
+            command = self.parser.parse(tokens)
+            self.executor.execute(command)
+
+    def tearDown(self):
+        """Clean up test database."""
+        try:
+            self.db_manager.drop_database("test_db")
+        except:
+            pass
+
+    def test_count_star_with_alias(self):
+        """Test COUNT(*) AS alias."""
+        sql = "SELECT COUNT(*) AS count FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('count', result[0])
+        self.assertEqual(result[0]['count'], 3)
+        # Original alias should not be present
+        self.assertNotIn('COUNT(*)', result[0])
+
+    def test_count_column_with_alias(self):
+        """Test COUNT(column) AS alias."""
+        sql = "SELECT COUNT(user_id) AS total FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('total', result[0])
+        self.assertEqual(result[0]['total'], 3)
+
+    def test_count_with_where_and_alias(self):
+        """Test COUNT(*) AS alias with WHERE clause."""
+        sql = "SELECT COUNT(*) AS count FROM users WHERE age > 30"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('count', result[0])
+        self.assertEqual(result[0]['count'], 1)  # Only Charlie (35)
+
+    def test_sum_with_alias(self):
+        """Test SUM with alias."""
+        sql = "SELECT SUM(salary) AS total_salary FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('total_salary', result[0])
+        self.assertEqual(result[0]['total_salary'], 165000)
+
+    def test_avg_with_alias(self):
+        """Test AVG with alias."""
+        sql = "SELECT AVG(age) AS average_age FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('average_age', result[0])
+        self.assertEqual(result[0]['average_age'], 30.0)
+
+    def test_min_max_with_alias(self):
+        """Test MIN and MAX with aliases."""
+        sql = "SELECT MIN(age) AS youngest, MAX(age) AS oldest FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('youngest', result[0])
+        self.assertIn('oldest', result[0])
+        self.assertEqual(result[0]['youngest'], 25)
+        self.assertEqual(result[0]['oldest'], 35)
+
+    def test_multiple_aggregates_with_aliases(self):
+        """Test multiple aggregates with different aliases."""
+        sql = "SELECT COUNT(*) AS total, AVG(salary) AS avg_sal, MIN(age) AS min_age FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('total', result[0])
+        self.assertIn('avg_sal', result[0])
+        self.assertIn('min_age', result[0])
+        self.assertEqual(result[0]['total'], 3)
+        self.assertEqual(result[0]['avg_sal'], 55000.0)
+        self.assertEqual(result[0]['min_age'], 25)
+
+    def test_column_alias_case_insensitive(self):
+        """Test that AS keyword is case-insensitive."""
+        test_cases = [
+            "SELECT COUNT(*) AS count FROM users",
+            "SELECT COUNT(*) as count FROM users",
+            "SELECT COUNT(*) As count FROM users",
+            "SELECT COUNT(*) aS count FROM users",
+        ]
+
+        for sql in test_cases:
+            tokens = self.tokenizer.tokenize(sql)
+            command = self.parser.parse(tokens)
+            result = self.executor.execute(command)
+            self.assertIn('count', result[0])
+            self.assertEqual(result[0]['count'], 3)
+
+    def test_alias_with_group_by(self):
+        """Test aliases with GROUP BY."""
+        sql = "SELECT age, COUNT(*) AS user_count FROM users GROUP BY age"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 3)
+        for row in result:
+            self.assertIn('age', row)
+            self.assertIn('user_count', row)
+            self.assertEqual(row['user_count'], 1)  # Each age appears once
+
+    def test_regular_column_with_alias(self):
+        """Test regular column with alias (non-aggregate)."""
+        sql = "SELECT username AS name FROM users WHERE user_id = 1"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('name', result[0])
+        self.assertEqual(result[0]['name'], 'Alice')
+        # Original column name should not be present
+        self.assertNotIn('username', result[0])
+
+    def test_multiple_columns_with_aliases(self):
+        """Test multiple regular columns with aliases."""
+        sql = "SELECT username AS name, age AS years FROM users WHERE user_id = 2"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('name', result[0])
+        self.assertIn('years', result[0])
+        self.assertEqual(result[0]['name'], 'Bob')
+        self.assertEqual(result[0]['years'], 25)
+
+    def test_mixed_aliases_and_regular_columns(self):
+        """Test mix of aliased and non-aliased columns."""
+        sql = "SELECT username AS name, age FROM users WHERE user_id = 1"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('name', result[0])
+        self.assertIn('age', result[0])
+        self.assertEqual(result[0]['name'], 'Alice')
+        self.assertEqual(result[0]['age'], 30)
+
+
+class TestTableQualifiedColumnsExecution(unittest.TestCase):
+    """Test execution of aggregate functions with table-qualified column names."""
+
+    def setUp(self):
+        """Set up test database and tables."""
+        self.db_manager = DatabaseManager()
+        self.db_manager.create_database("test_db")
+
+        self.tokenizer = Tokenizer()
+        self.parser = Parser()
+        self.executor = Executor(self.db_manager)
+        self.executor.execute(self.parser.parse(self.tokenizer.tokenize("USE test_db")))
+
+        # Create users table
+        sql = """
+        CREATE TABLE users (
+            user_id INT PRIMARY KEY,
+            username STRING,
+            age INT,
+            salary INT
+        )
+        """
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        self.executor.execute(command)
+
+        # Insert test data
+        test_data = [
+            "INSERT INTO users VALUES (1, 'Alice', 30, 50000)",
+            "INSERT INTO users VALUES (2, 'Bob', 25, 60000)",
+            "INSERT INTO users VALUES (3, 'Charlie', 35, 55000)",
+        ]
+        for sql in test_data:
+            tokens = self.tokenizer.tokenize(sql)
+            command = self.parser.parse(tokens)
+            self.executor.execute(command)
+
+    def tearDown(self):
+        """Clean up test database."""
+        try:
+            self.db_manager.drop_database("test_db")
+        except:
+            pass
+
+    def test_count_table_qualified_column_execution(self):
+        """Test COUNT(users.user_id) executes correctly."""
+        sql = "SELECT COUNT(users.user_id) FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['COUNT(users.user_id)'], 3)
+
+    def test_sum_table_qualified_column_execution(self):
+        """Test SUM(users.salary) executes correctly."""
+        sql = "SELECT SUM(users.salary) FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['SUM(users.salary)'], 165000)
+
+    def test_avg_table_qualified_column_execution(self):
+        """Test AVG(users.age) executes correctly."""
+        sql = "SELECT AVG(users.age) FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['AVG(users.age)'], 30.0)
+
+    def test_min_max_table_qualified_columns(self):
+        """Test MIN and MAX with table-qualified columns."""
+        sql = "SELECT MIN(users.age), MAX(users.salary) FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['MIN(users.age)'], 25)
+        self.assertEqual(result[0]['MAX(users.salary)'], 60000)
+
+    def test_table_qualified_with_where(self):
+        """Test table-qualified columns in aggregates with WHERE clause."""
+        sql = "SELECT COUNT(users.user_id) FROM users WHERE users.age > 28"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['COUNT(users.user_id)'], 2)  # Alice (30) and Charlie (35)
+
+    def test_table_qualified_with_alias(self):
+        """Test table-qualified columns with AS alias."""
+        sql = "SELECT COUNT(users.user_id) AS total FROM users"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 1)
+        self.assertIn('total', result[0])
+        self.assertEqual(result[0]['total'], 3)
+
+
+class TestGroupByTableQualified(unittest.TestCase):
+    """Test GROUP BY with table-qualified column names."""
+
+    def setUp(self):
+        """Set up test database and tables."""
+        self.db_manager = DatabaseManager()
+        self.db_manager.create_database("test_db")
+
+        self.tokenizer = Tokenizer()
+        self.parser = Parser()
+        self.executor = Executor(self.db_manager)
+        self.executor.execute(self.parser.parse(self.tokenizer.tokenize("USE test_db")))
+
+        # Create departments table
+        sql = """
+        CREATE TABLE employees (
+            emp_id INT PRIMARY KEY,
+            name STRING,
+            department STRING,
+            salary INT
+        )
+        """
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        self.executor.execute(command)
+
+        # Insert test data
+        test_data = [
+            "INSERT INTO employees VALUES (1, 'Alice', 'Engineering', 80000)",
+            "INSERT INTO employees VALUES (2, 'Bob', 'Engineering', 75000)",
+            "INSERT INTO employees VALUES (3, 'Charlie', 'Sales', 70000)",
+            "INSERT INTO employees VALUES (4, 'Diana', 'Sales', 65000)",
+        ]
+        for sql in test_data:
+            tokens = self.tokenizer.tokenize(sql)
+            command = self.parser.parse(tokens)
+            self.executor.execute(command)
+
+    def tearDown(self):
+        """Clean up test database."""
+        try:
+            self.db_manager.drop_database("test_db")
+        except:
+            pass
+
+    def test_group_by_table_qualified(self):
+        """Test GROUP BY with table.column syntax."""
+        sql = "SELECT department, COUNT(*) FROM employees GROUP BY employees.department"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 2)
+        dept_counts = {row['department']: row['COUNT(*)'] for row in result}
+        self.assertEqual(dept_counts['Engineering'], 2)
+        self.assertEqual(dept_counts['Sales'], 2)
+
+    def test_order_by_table_qualified(self):
+        """Test ORDER BY with table.column syntax."""
+        sql = "SELECT name, salary FROM employees ORDER BY employees.salary DESC"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result[0]['name'], 'Alice')  # Highest salary
+        self.assertEqual(result[3]['name'], 'Diana')  # Lowest salary
+
+
+class TestJoinWithAggregatesError(unittest.TestCase):
+    """Test that JOIN + AGGREGATE queries raise clear error."""
+
+    def setUp(self):
+        """Set up test database and tables."""
+        self.db_manager = DatabaseManager()
+        self.db_manager.create_database("test_db")
+
+        self.tokenizer = Tokenizer()
+        self.parser = Parser()
+        self.executor = Executor(self.db_manager)
+        self.executor.execute(self.parser.parse(self.tokenizer.tokenize("USE test_db")))
+
+        # Create users and orders tables
+        sql1 = "CREATE TABLE users (user_id INT PRIMARY KEY, name STRING)"
+        sql2 = "CREATE TABLE orders (order_id INT PRIMARY KEY, user_id INT, amount INT)"
+
+        for sql in [sql1, sql2]:
+            tokens = self.tokenizer.tokenize(sql)
+            command = self.parser.parse(tokens)
+            self.executor.execute(command)
+
+        # Insert test data
+        test_data = [
+            "INSERT INTO users VALUES (1, 'Alice')",
+            "INSERT INTO orders VALUES (1, 1, 100)",
+            "INSERT INTO orders VALUES (2, 1, 200)",
+        ]
+        for sql in test_data:
+            tokens = self.tokenizer.tokenize(sql)
+            command = self.parser.parse(tokens)
+            self.executor.execute(command)
+
+    def tearDown(self):
+        """Clean up test database."""
+        try:
+            self.db_manager.drop_database("test_db")
+        except:
+            pass
+
+    def test_join_with_aggregate_raises_error(self):
+        """Test that JOIN + AGGREGATE raises clear ExecutorError."""
+        sql = "SELECT users.name, COUNT(orders.order_id) FROM users INNER JOIN orders ON users.user_id = orders.user_id GROUP BY users.name"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+
+        with self.assertRaises(ExecutorError) as context:
+            self.executor.execute(command)
+
+        # Verify error message is clear
+        error_msg = str(context.exception)
+        self.assertIn('Aggregate functions with JOIN', error_msg)
+        self.assertIn('not yet supported', error_msg)
+
+    def test_join_without_aggregate_works(self):
+        """Test that JOIN without aggregates still works."""
+        sql = "SELECT users.name, orders.amount FROM users INNER JOIN orders ON users.user_id = orders.user_id"
+        tokens = self.tokenizer.tokenize(sql)
+        command = self.parser.parse(tokens)
+        result = self.executor.execute(command)
+
+        self.assertEqual(len(result), 2)  # Two orders for Alice
+
+
 if __name__ == '__main__':
     unittest.main()

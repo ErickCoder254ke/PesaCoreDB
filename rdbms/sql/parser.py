@@ -133,6 +133,7 @@ class SelectCommand(ParsedCommand):
                  aggregates: Optional[List[Tuple[str, AggregateExpression]]] = None,
                  group_by: Optional[List[str]] = None,
                  having_clause: Optional[Expression] = None,
+                 column_aliases: Optional[Dict[str, str]] = None,
                  where_col: Optional[str] = None, where_val: Any = None):
         self.columns = columns
         self.table_name = table_name
@@ -148,13 +149,15 @@ class SelectCommand(ParsedCommand):
         self.aggregates = aggregates  # List of (alias, AggregateExpression) tuples
         self.group_by = group_by  # List of column names to group by
         self.having_clause = having_clause  # Expression for HAVING clause (filter groups)
+        self.column_aliases = column_aliases or {}  # Dict mapping original column name/aggregate to alias
         # Backward compatibility
         self.where_col = where_col
         self.where_val = where_val
 
     def __repr__(self) -> str:
         join_info = f", join_type={self.join_type}" if self.join_table else ""
-        return f"SelectCommand(columns={self.columns}, table={self.table_name}{join_info})"
+        aliases_info = f", aliases={len(self.column_aliases)}" if self.column_aliases else ""
+        return f"SelectCommand(columns={self.columns}, table={self.table_name}{join_info}{aliases_info})"
 
 
 class UpdateCommand(ParsedCommand):
@@ -500,6 +503,7 @@ class Parser:
         # Parse columns and aggregate functions
         columns = []
         aggregates = []  # List of (alias, AggregateExpression)
+        column_aliases = {}  # Dict mapping original column name/aggregate to custom alias
 
         if self.peek() and self.peek().type == 'STAR':
             self.consume('*')
@@ -509,6 +513,16 @@ class Parser:
                 # Check if this is an aggregate function
                 if self._is_aggregate_function():
                     alias, agg_expr = self._parse_aggregate_function()
+                    original_alias = alias  # Store auto-generated alias
+
+                    # Check for custom AS alias
+                    if self.peek() and self.peek().value == 'AS':
+                        self.consume('AS')
+                        custom_alias_token = self.consume(expected_type='IDENTIFIER')
+                        custom_alias = custom_alias_token.value
+                        column_aliases[original_alias] = custom_alias
+                        alias = custom_alias  # Use custom alias
+
                     aggregates.append((alias, agg_expr))
                 else:
                     # Handle table.column syntax
@@ -519,6 +533,15 @@ class Parser:
                         self.consume('.')
                         actual_col_token = self.consume(expected_type='IDENTIFIER')
                         col_name = actual_col_token.value
+
+                    original_col_name = col_name
+
+                    # Check for custom AS alias
+                    if self.peek() and self.peek().value == 'AS':
+                        self.consume('AS')
+                        custom_alias_token = self.consume(expected_type='IDENTIFIER')
+                        custom_alias = custom_alias_token.value
+                        column_aliases[original_col_name] = custom_alias
 
                     columns.append(col_name)
 
@@ -599,7 +622,16 @@ class Parser:
             group_by = []
             while True:
                 col_token = self.consume(expected_type='IDENTIFIER')
-                group_by.append(col_token.value)
+                col_name = col_token.value
+
+                # Handle table.column syntax
+                if self.peek() and self.peek().type == 'DOT':
+                    self.consume('.')
+                    actual_col_token = self.consume(expected_type='IDENTIFIER')
+                    # Use just the column name (strip table prefix)
+                    col_name = actual_col_token.value
+
+                group_by.append(col_name)
 
                 if self.peek() and self.peek().value == ',':
                     self.consume(',')
@@ -640,7 +672,8 @@ class Parser:
                            join_right_col=join_right_col, join_type=join_type,
                            order_by=order_by, limit=limit, offset=offset, distinct=distinct,
                            aggregates=aggregates if aggregates else None,
-                           group_by=group_by, having_clause=having_clause)
+                           group_by=group_by, having_clause=having_clause,
+                           column_aliases=column_aliases if column_aliases else None)
     
     def _parse_update(self) -> UpdateCommand:
         """Parse UPDATE statement."""
@@ -908,6 +941,13 @@ class Parser:
             while True:
                 col_token = self.consume(expected_type='IDENTIFIER')
                 col_name = col_token.value
+
+                # Handle table.column syntax
+                if self.peek() and self.peek().type == 'DOT':
+                    self.consume('.')
+                    actual_col_token = self.consume(expected_type='IDENTIFIER')
+                    # Use just the column name (strip table prefix)
+                    col_name = actual_col_token.value
 
                 # Check for ASC/DESC
                 direction = 'ASC'  # Default

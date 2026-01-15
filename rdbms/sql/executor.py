@@ -296,9 +296,40 @@ class Executor:
                 raise ConstraintViolationError(error_msg)
             raise ExecutorError(error_msg)
 
+    def _apply_column_aliases(self, rows: List[Dict[str, Any]], column_aliases: Dict[str, str]) -> List[Dict[str, Any]]:
+        """Apply column aliases to result rows.
+
+        Args:
+            rows: List of result rows
+            column_aliases: Dict mapping original column name to alias
+
+        Returns:
+            List of rows with aliased column names
+        """
+        if not column_aliases or not rows:
+            return rows
+
+        aliased_rows = []
+        for row in rows:
+            aliased_row = {}
+            for col_name, value in row.items():
+                # Use alias if available, otherwise keep original name
+                aliased_col_name = column_aliases.get(col_name, col_name)
+                aliased_row[aliased_col_name] = value
+            aliased_rows.append(aliased_row)
+
+        return aliased_rows
+
     def _execute_select(self, command: SelectCommand, database: Database) -> List[Dict[str, Any]]:
         """Execute SELECT command."""
         if command.join_table:
+            # Check if this query also has aggregates
+            if command.aggregates:
+                raise ExecutorError(
+                    "Aggregate functions with JOIN queries are not yet supported. "
+                    "Workaround: Use separate queries or compute aggregates in your application. "
+                    "Example: SELECT COUNT(*) FROM (SELECT * FROM table1 JOIN table2 ...) is not supported."
+                )
             return self._execute_select_with_join(command, database)
         else:
             try:
@@ -338,6 +369,10 @@ class Executor:
 
                 # Apply OFFSET and LIMIT
                 result = self._apply_limit_offset(result, command.limit, command.offset)
+
+                # Apply column aliases if specified
+                if command.column_aliases:
+                    result = self._apply_column_aliases(result, command.column_aliases)
 
                 return result
 
@@ -781,6 +816,10 @@ class Executor:
 
         # Apply OFFSET and LIMIT
         result = self._apply_limit_offset(result, command.limit, command.offset)
+
+        # Apply column aliases if specified
+        if command.column_aliases:
+            result = self._apply_column_aliases(result, command.column_aliases)
 
         return result
 

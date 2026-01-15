@@ -53,9 +53,24 @@ class ColumnExpression(Expression):
         self.column_name = column_name
     
     def evaluate(self, row: Dict[str, Any]) -> Any:
-        if self.column_name not in row:
-            raise ValueError(f"Column '{self.column_name}' not found in row")
-        return row[self.column_name]
+        # Try the full column name first
+        if self.column_name in row:
+            return row[self.column_name]
+
+        # If it contains a dot (table.column syntax), try just the column part
+        if '.' in self.column_name:
+            unqualified_name = self.column_name.split('.', 1)[1]
+            if unqualified_name in row:
+                return row[unqualified_name]
+
+        # Column not found - provide helpful error message
+        if '.' in self.column_name:
+            raise ValueError(
+                f"Column '{self.column_name}' not found. "
+                f"Try using unqualified column name '{self.column_name.split('.', 1)[1]}' "
+                f"when querying a single table."
+            )
+        raise ValueError(f"Column '{self.column_name}' not found in row")
     
     def __repr__(self) -> str:
         return self.column_name
