@@ -375,6 +375,8 @@ class Parser:
             is_unique = False
             foreign_key_table = None
             foreign_key_column = None
+            on_delete = None
+            on_update = None
 
             # Check for PRIMARY KEY
             if self.peek() and self.peek().value == 'PRIMARY':
@@ -396,7 +398,50 @@ class Parser:
                 foreign_key_column = fk_col_token.value
                 self.consume(')')
 
-            columns.append(ColumnDefinition(col_name, col_type, is_primary_key, is_unique, foreign_key_table, foreign_key_column))
+                # Check for ON DELETE clause
+                if self.peek() and self.peek().value == 'ON':
+                    lookahead = self.peek(1)
+                    if lookahead and lookahead.value == 'DELETE':
+                        self.consume('ON')
+                        self.consume('DELETE')
+                        action_token = self.peek()
+
+                        if action_token and action_token.value in ('CASCADE', 'RESTRICT'):
+                            on_delete = self.consume().value
+                        elif action_token and action_token.value == 'SET':
+                            self.consume('SET')
+                            self.consume('NULL')
+                            on_delete = 'SET NULL'
+                        elif action_token and action_token.value == 'NO':
+                            self.consume('NO')
+                            self.consume('ACTION')
+                            on_delete = 'NO ACTION'
+                        else:
+                            raise ParserError(f"Invalid ON DELETE action. Expected CASCADE, SET NULL, RESTRICT, or NO ACTION", action_token)
+
+                # Check for ON UPDATE clause
+                if self.peek() and self.peek().value == 'ON':
+                    lookahead = self.peek(1)
+                    if lookahead and lookahead.value == 'UPDATE':
+                        self.consume('ON')
+                        self.consume('UPDATE')
+                        action_token = self.peek()
+
+                        if action_token and action_token.value in ('CASCADE', 'RESTRICT'):
+                            on_update = self.consume().value
+                        elif action_token and action_token.value == 'SET':
+                            self.consume('SET')
+                            self.consume('NULL')
+                            on_update = 'SET NULL'
+                        elif action_token and action_token.value == 'NO':
+                            self.consume('NO')
+                            self.consume('ACTION')
+                            on_update = 'NO ACTION'
+                        else:
+                            raise ParserError(f"Invalid ON UPDATE action. Expected CASCADE, SET NULL, RESTRICT, or NO ACTION", action_token)
+
+            columns.append(ColumnDefinition(col_name, col_type, is_primary_key, is_unique,
+                                          foreign_key_table, foreign_key_column, on_delete, on_update))
             
             next_token = self.peek()
             if next_token and next_token.value == ',':

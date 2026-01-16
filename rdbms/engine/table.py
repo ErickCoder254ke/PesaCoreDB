@@ -8,14 +8,20 @@ from .index import Index
 class ColumnDefinition:
     """Definition of a table column."""
 
-    def __init__(self, name: str, data_type: DataType, is_primary_key: bool = False, is_unique: bool = False, foreign_key_table: Optional[str] = None, foreign_key_column: Optional[str] = None):
+    def __init__(self, name: str, data_type: DataType, is_primary_key: bool = False, is_unique: bool = False,
+                 foreign_key_table: Optional[str] = None, foreign_key_column: Optional[str] = None,
+                 on_delete: Optional[str] = None, on_update: Optional[str] = None):
         self.name = name
         self.data_type = data_type
         self.is_primary_key = is_primary_key
         self.is_unique = is_unique
         self.foreign_key_table = foreign_key_table
         self.foreign_key_column = foreign_key_column
-    
+        # FK actions: CASCADE, SET NULL, RESTRICT, NO ACTION
+        # Default to RESTRICT (prevent delete/update if referenced)
+        self.on_delete = on_delete.upper() if on_delete else 'RESTRICT'
+        self.on_update = on_update.upper() if on_update else 'RESTRICT'
+
     def __repr__(self) -> str:
         flags = []
         if self.is_primary_key:
@@ -23,7 +29,12 @@ class ColumnDefinition:
         if self.is_unique:
             flags.append("UNIQUE")
         if self.foreign_key_table:
-            flags.append(f"REFERENCES {self.foreign_key_table}({self.foreign_key_column})")
+            fk_str = f"REFERENCES {self.foreign_key_table}({self.foreign_key_column})"
+            if self.on_delete != 'RESTRICT':
+                fk_str += f" ON DELETE {self.on_delete}"
+            if self.on_update != 'RESTRICT':
+                fk_str += f" ON UPDATE {self.on_update}"
+            flags.append(fk_str)
         flag_str = " " + " ".join(flags) if flags else ""
         return f"{self.name} {self.data_type.value}{flag_str}"
 
@@ -102,14 +113,16 @@ class Table:
             raise ValueError("Table can have only one PRIMARY KEY column")
 
     def check_referential_integrity_for_delete(self, where_col: str, where_val: Any) -> None:
-        """Check if deleting rows would violate referential integrity.
+        """Check and enforce referential integrity for delete operations.
+
+        This method handles ON DELETE actions: CASCADE, SET NULL, RESTRICT, NO ACTION.
 
         Args:
             where_col: Column name being used for deletion
             where_val: Value being deleted
 
         Raises:
-            ValueError: If deletion would create orphaned records
+            ValueError: If deletion would violate referential integrity (RESTRICT)
         """
         if self.database is None:
             return
@@ -128,17 +141,40 @@ class Table:
                 if col.foreign_key_table == self.name and col.foreign_key_column == where_col:
                     # This table references us, check if there are any rows with this FK value
                     referencing_rows = other_table.select(
-                        columns=[col.name],
+                        columns=[other_table.primary_key_column, col.name],
                         where_col=col.name,
                         where_val=where_val
                     )
 
                     if referencing_rows:
-                        raise ValueError(
-                            f"Cannot delete row from '{self.name}' where {where_col}={where_val}: "
-                            f"Referenced by {len(referencing_rows)} row(s) in table '{table_name}.{col.name}'. "
-                            f"Delete or update referencing rows first."
-                        )
+                        # Handle ON DELETE action
+                        on_delete_action = col.on_delete
+
+                        if on_delete_action == 'CASCADE':
+                            # Delete all referencing rows
+                            for ref_row in referencing_rows:
+                                pk_val = ref_row[other_table.primary_key_column]
+                                # Recursively check and handle cascades
+                                other_table.check_referential_integrity_for_delete(
+                                    other_table.primary_key_column, pk_val
+                                )
+                                # Delete the row
+                                other_table.delete(other_table.primary_key_column, pk_val)
+
+                        elif on_delete_action == 'SET NULL':
+                            # Set the FK column to NULL for all referencing rows
+                            for ref_row in referencing_rows:
+                                pk_val = ref_row[other_table.primary_key_column]
+                                other_table.update(col.name, None, other_table.primary_key_column, pk_val)
+
+                        elif on_delete_action in ('RESTRICT', 'NO ACTION'):
+                            # Prevent deletion (default behavior)
+                            raise ValueError(
+                                f"Cannot delete row from '{self.name}' where {where_col}={where_val}: "
+                                f"Referenced by {len(referencing_rows)} row(s) in table '{table_name}.{col.name}' "
+                                f"(ON DELETE {on_delete_action}). "
+                                f"Delete or update referencing rows first, or use ON DELETE CASCADE/SET NULL."
+                            )
 
     def validate_foreign_keys(self, values: Dict[str, Any]) -> None:
         """Validate foreign key constraints.
@@ -265,51 +301,115 @@ class Table:
         
         return result
     
-    def update(self, set_col: str, set_val: Any, where_col: Optional[str] = None, 
+    def check_referential_integrity_for_update(self, set_col: str, old_val: Any, new_val: Any) -> None:
+        """Check and enforce referential integrity for update operations.
+
+        This method handles ON UPDATE actions: CASCADE, SET NULL, RESTRICT, NO ACTION.
+
+        Args:
+            set_col: Column being updated
+            old_val: Old value before update
+            new_val: New value after update
+
+        Raises:
+            ValueError: If update would violate referential integrity (RESTRICT)
+        """
+        if self.database is None:
+            return
+
+        # Only check if updating a primary key or unique column
+        if set_col != self.primary_key_column and set_col not in self.unique_columns:
+            return
+
+        # Look for tables that reference this table
+        for table_name in self.database.list_tables():
+            if table_name == self.name:
+                continue
+
+            other_table = self.database.get_table(table_name)
+            for col in other_table.columns:
+                if col.foreign_key_table == self.name and col.foreign_key_column == set_col:
+                    # This table references us, check if there are any rows with the old FK value
+                    referencing_rows = other_table.select(
+                        columns=[other_table.primary_key_column, col.name],
+                        where_col=col.name,
+                        where_val=old_val
+                    )
+
+                    if referencing_rows:
+                        # Handle ON UPDATE action
+                        on_update_action = col.on_update
+
+                        if on_update_action == 'CASCADE':
+                            # Update all referencing rows with the new value
+                            for ref_row in referencing_rows:
+                                pk_val = ref_row[other_table.primary_key_column]
+                                other_table.update(col.name, new_val, other_table.primary_key_column, pk_val)
+
+                        elif on_update_action == 'SET NULL':
+                            # Set the FK column to NULL for all referencing rows
+                            for ref_row in referencing_rows:
+                                pk_val = ref_row[other_table.primary_key_column]
+                                other_table.update(col.name, None, other_table.primary_key_column, pk_val)
+
+                        elif on_update_action in ('RESTRICT', 'NO ACTION'):
+                            # Prevent update (default behavior)
+                            raise ValueError(
+                                f"Cannot update '{self.name}.{set_col}' from {old_val} to {new_val}: "
+                                f"Referenced by {len(referencing_rows)} row(s) in table '{table_name}.{col.name}' "
+                                f"(ON UPDATE {on_update_action}). "
+                                f"Update or delete referencing rows first, or use ON UPDATE CASCADE/SET NULL."
+                            )
+
+    def update(self, set_col: str, set_val: Any, where_col: Optional[str] = None,
                where_val: Any = None) -> int:
         """Update rows in the table.
-        
+
         Args:
             set_col: Column to update
             set_val: New value
             where_col: Column name for WHERE clause
             where_val: Value for WHERE clause
-        
+
         Returns:
             Number of rows updated
-        
+
         Raises:
             ValueError: If constraints are violated
         """
         if set_col not in self.schema:
             raise ValueError(f"Column '{set_col}' does not exist in table '{self.name}'")
-        
+
         # Find matching rows
         if where_col is not None:
             if where_col not in self.schema:
                 raise ValueError(f"Column '{where_col}' does not exist in table '{self.name}'")
-            
+
             if where_col in self.indexes:
                 row_indices = self.indexes[where_col].lookup(where_val)
             else:
                 row_indices = [i for i, row in enumerate(self.rows) if row.get(where_col) == where_val]
         else:
             row_indices = list(range(len(self.rows)))
-        
+
         # Update rows
         updated_count = 0
         for row_idx in row_indices:
             row = self.rows[row_idx]
             old_value = row.get(set_col)
-            
+
+            # Check referential integrity for updates to PK/unique columns
+            if old_value != set_val:
+                self.check_referential_integrity_for_update(set_col, old_value, set_val)
+
             # Update indexes if column is indexed
             if set_col in self.indexes:
                 self.indexes[set_col].update(old_value, set_val, row_idx)
-            
+
             # Update row
             row.set(set_col, set_val)
             updated_count += 1
-        
+
         return updated_count
     
     def delete(self, where_col: Optional[str] = None, where_val: Any = None) -> int:

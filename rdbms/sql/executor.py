@@ -48,6 +48,118 @@ class Executor:
         self.database_manager = database_manager
         self.current_database: Optional[str] = None
 
+    def _detect_circular_fk_dependency(self, table_name: str, columns: List[ColumnDefinition], database: Database):
+        """Detect circular foreign key dependencies.
+
+        Args:
+            table_name: Name of the table being created
+            columns: Column definitions for the new table
+            database: Database instance
+
+        Raises:
+            ExecutorError: If circular dependency is detected
+        """
+        # Build a dependency graph: table_name -> set of tables it references
+        def get_dependencies(tbl_name: str, visited: set) -> set:
+            """Recursively get all tables that tbl_name depends on."""
+            if tbl_name in visited:
+                # Circular dependency detected
+                return {tbl_name}
+
+            visited.add(tbl_name)
+            dependencies = set()
+
+            # Get the table's columns
+            if tbl_name == table_name:
+                # Use the columns being created
+                table_columns = columns
+            else:
+                # Get existing table
+                try:
+                    existing_table = database.get_table(tbl_name)
+                    table_columns = existing_table.columns
+                except ValueError:
+                    # Table doesn't exist, no dependencies
+                    return dependencies
+
+            # Find all FK references
+            for col in table_columns:
+                if col.foreign_key_table:
+                    ref_table = col.foreign_key_table
+                    dependencies.add(ref_table)
+
+                    # Recursively check dependencies
+                    sub_deps = get_dependencies(ref_table, visited.copy())
+                    if table_name in sub_deps:
+                        # Circular dependency!
+                        return {table_name}
+                    dependencies.update(sub_deps)
+
+            return dependencies
+
+        # Check for circular dependencies
+        all_deps = get_dependencies(table_name, set())
+        if table_name in all_deps:
+            # Find the cycle for a helpful error message
+            cycle_tables = [table_name]
+            for col in columns:
+                if col.foreign_key_table and col.foreign_key_table in all_deps:
+                    cycle_tables.append(col.foreign_key_table)
+
+            raise ExecutorError(
+                f"Circular foreign key dependency detected: "
+                f"{' -> '.join(cycle_tables)} -> {table_name}. "
+                f"Circular dependencies are not allowed as they can cause issues with CASCADE operations."
+            )
+
+    def _validate_foreign_key_definitions(self, columns: List[ColumnDefinition], database: Database):
+        """Validate foreign key definitions at table creation time.
+
+        Args:
+            columns: List of column definitions to validate
+            database: Database instance for looking up referenced tables
+
+        Raises:
+            ExecutorError: If foreign key definition is invalid
+        """
+        for col in columns:
+            if col.foreign_key_table:
+                fk_table_name = col.foreign_key_table
+                fk_column_name = col.foreign_key_column
+
+                # Check if referenced table exists
+                try:
+                    fk_table = database.get_table(fk_table_name)
+                except ValueError:
+                    raise ExecutorError(
+                        f"Foreign key error on column '{col.name}': "
+                        f"referenced table '{fk_table_name}' does not exist. "
+                        f"Create the referenced table first."
+                    )
+
+                # Check if the referenced column exists
+                if fk_column_name not in fk_table.schema:
+                    raise ExecutorError(
+                        f"Foreign key error on column '{col.name}': "
+                        f"referenced column '{fk_column_name}' does not exist in table '{fk_table_name}'"
+                    )
+
+                # Ensure the referenced column is PRIMARY KEY or UNIQUE
+                is_valid_reference = False
+
+                # Check if it's the primary key
+                if fk_table.primary_key_column == fk_column_name:
+                    is_valid_reference = True
+                # Check if it's a unique column
+                elif fk_column_name in fk_table.unique_columns:
+                    is_valid_reference = True
+
+                if not is_valid_reference:
+                    raise ExecutorError(
+                        f"Foreign key error on column '{col.name}': "
+                        f"referenced column '{fk_table_name}.{fk_column_name}' must be PRIMARY KEY or UNIQUE"
+                    )
+
     def _validate_foreign_keys(self, table: Table, values_dict: Dict[str, Any], database: Database):
         """Validate foreign key constraints for a row.
 
@@ -184,12 +296,18 @@ class Executor:
     def _execute_create_table(self, command: CreateTableCommand, database: Database) -> str:
         """Execute CREATE TABLE command."""
         try:
+            # Validate foreign key constraints before creating table
+            self._validate_foreign_key_definitions(command.columns, database)
+
+            # Detect circular FK dependencies
+            self._detect_circular_fk_dependency(command.table_name, command.columns, database)
+
             table = Table(command.table_name, command.columns)
             database.create_table(table)
-            
+
             # Auto-save
             self.database_manager.save_database(self.current_database)
-            
+
             return f"Table '{command.table_name}' created successfully."
         except ValueError as e:
             raise ExecutorError(str(e))

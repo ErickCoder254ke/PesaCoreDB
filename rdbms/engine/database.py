@@ -87,6 +87,8 @@ class Database:
                 if col.foreign_key_table:
                     col_data['foreign_key_table'] = col.foreign_key_table
                     col_data['foreign_key_column'] = col.foreign_key_column
+                    col_data['on_delete'] = col.on_delete
+                    col_data['on_update'] = col.on_update
                 columns_data.append(col_data)
 
             # Serialize rows
@@ -145,7 +147,9 @@ class Database:
                     is_primary_key=col_data.get('is_primary_key', False),
                     is_unique=col_data.get('is_unique', False),
                     foreign_key_table=col_data.get('foreign_key_table'),
-                    foreign_key_column=col_data.get('foreign_key_column')
+                    foreign_key_column=col_data.get('foreign_key_column'),
+                    on_delete=col_data.get('on_delete'),
+                    on_update=col_data.get('on_update')
                 )
                 columns.append(col)
 
