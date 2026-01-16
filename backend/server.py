@@ -41,23 +41,15 @@ api_router = APIRouter(prefix="/api")
 # Support pesadb:// connection URL from environment or use default
 PESADB_URL = os.getenv("PESADB_URL", "pesadb://localhost/default")
 
-try:
-    # Parse and connect using pesadb:// URL
-    connection = connect(PESADB_URL)
-    database_manager = connection.get_database_manager()
-    default_database = connection.get_database_name()
+# Initialize these as None - they will be set up in startup event
+database_manager = None
+default_database = None
+connection = None
 
-    print(f"✅ Connected to PesaDB: {PESADB_URL}")
-    print(f"   Default database: {default_database}")
-except ValueError as e:
-    print(f"❌ Failed to connect to database: {e}")
-    print(f"   Invalid PESADB_URL: {PESADB_URL}")
-    print("   Expected format: pesadb://localhost/database_name")
-    raise
-
+# Initialize tokenizer and parser (these don't require database connection)
 tokenizer = Tokenizer()
 parser = Parser()
-executor = Executor(database_manager)
+executor = None  # Will be initialized after database connection
 
 # Configure logging with enhanced formatting
 logging.basicConfig(
@@ -130,7 +122,7 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 AI_ENABLED = bool(GEMINI_API_KEY and GEMINI_API_KEY != "your_api_key_here")
 
 # Public endpoints that don't require authentication
-PUBLIC_ENDPOINTS = ["/docs", "/redoc", "/openapi.json"]
+PUBLIC_ENDPOINTS = ["/docs", "/redoc", "/openapi.json", "/health", "/api/health"]
 
 # Middleware for API key authentication
 @app.middleware("http")
@@ -195,6 +187,15 @@ async def log_requests(request: Request, call_next):
         logger.error(f"Request failed: {request.method} {request.url.path} Error: {str(e)}")
         raise
 
+# Helper function to check if database is initialized
+def check_database_initialized():
+    """Check if database is properly initialized, raise HTTPException if not"""
+    if database_manager is None or executor is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Database not initialized. Server is starting up or database connection failed. Check server logs."
+        )
+
 # Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -221,15 +222,31 @@ async def root():
     }
 
 @api_router.get("/health")
-async def health_check():
-    """Health check endpoint for monitoring"""
+async def api_health_check():
+    """Detailed health check endpoint for monitoring"""
+    db_count = 0
+    db_status = "not_initialized"
+
+    if database_manager:
+        try:
+            db_count = len(database_manager.list_databases())
+            db_status = "connected"
+        except Exception as e:
+            db_status = f"error: {str(e)}"
+
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "databases": len(database_manager.list_databases()),
+        "databases": db_count,
+        "database_status": db_status,
         "uptime": str(datetime.now() - datetime.fromisoformat(stats["server_start_time"])),
         "ai_enabled": AI_ENABLED
     }
+
+@app.get("/health")
+async def root_health_check():
+    """Simple health check endpoint for Railway/Render health checks"""
+    return {"status": "ok"}
 
 @api_router.get("/ai/config")
 async def get_ai_config():
@@ -404,6 +421,7 @@ async def get_stats():
 @api_router.get("/databases")
 async def list_databases():
     """List all databases"""
+    check_database_initialized()
     try:
         databases = database_manager.list_databases()
         logger.info(f"Retrieved {len(databases)} databases")
@@ -419,6 +437,7 @@ async def list_databases():
 @api_router.post("/databases")
 async def create_database(request: CreateDatabaseRequest):
     """Create a new database"""
+    check_database_initialized()
     try:
         logger.info(f"Creating database: {request.name}")
         database_manager.create_database(request.name)
@@ -542,6 +561,7 @@ async def execute_query(request: QueryRequest):
     - Input validation for length and suspicious patterns
     - All SQL is parsed into structured commands before execution
     """
+    check_database_initialized()
     start_time = time.time()
     stats["total_queries"] += 1
 
@@ -836,19 +856,39 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
+    global database_manager, default_database, connection, executor
+
     logger.info("=" * 80)
     logger.info("PesacodeDB API Server Starting")
     logger.info("=" * 80)
     logger.info(f"Version: 2.0.0")
-    logger.info(f"Connection URL: {PESADB_URL}")
-    logger.info(f"Default database: {default_database}")
-    logger.info(f"Databases loaded: {len(database_manager.list_databases())}")
-    logger.info(f"Available databases: {', '.join(database_manager.list_databases())}")
     logger.info(f"Server start time: {stats['server_start_time']}")
+
+    # Initialize database connection
+    logger.info(f"Connection URL: {PESADB_URL}")
+    try:
+        # Parse and connect using pesadb:// URL
+        connection = connect(PESADB_URL)
+        database_manager = connection.get_database_manager()
+        default_database = connection.get_database_name()
+        executor = Executor(database_manager)
+
+        logger.info(f"✅ Connected to PesaDB successfully")
+        logger.info(f"   Default database: {default_database}")
+        logger.info(f"   Databases loaded: {len(database_manager.list_databases())}")
+        logger.info(f"   Available databases: {', '.join(database_manager.list_databases())}")
+    except Exception as e:
+        logger.error(f"❌ Failed to connect to database: {e}")
+        logger.error(f"   Invalid PESADB_URL: {PESADB_URL}")
+        logger.error("   Expected format: pesadb://localhost/database_name")
+        logger.error("   Server will start but database operations will fail!")
+        logger.error("   Health checks will still pass to allow debugging")
+        # Don't raise - let the server start anyway
+
     logger.info("=" * 80)
     logger.info("🔒 Security Configuration:")
     logger.info(f"   API Key Authentication: {'✅ ENABLED' if REQUIRE_API_KEY else '⚠️ DISABLED'}")
-    logger.info(f"   API Key Configured: {'✅ YES' if API_KEY else '❌ NO - SERVER WILL NOT START PROPERLY!'}")
+    logger.info(f"   API Key Configured: {'✅ YES' if API_KEY else '❌ NO'}")
     logger.info(f"   CORS Origins: {os.getenv('CORS_ORIGINS', '*')}")
     logger.info("=" * 80)
     logger.info("🤖 AI Configuration:")
@@ -860,8 +900,9 @@ async def startup_event():
     logger.info("=" * 80)
 
     if REQUIRE_API_KEY and not API_KEY:
-        logger.error("❌ CRITICAL: API_KEY is required but not set in environment variables!")
-        logger.error("   Set API_KEY in your .env file or environment variables")
+        logger.warning("⚠️ WARNING: API_KEY is required but not set in environment variables!")
+        logger.warning("   Set API_KEY in your .env file or environment variables")
+        logger.warning("   API endpoints will return errors until API_KEY is configured")
     elif not REQUIRE_API_KEY:
         logger.warning("⚠️ WARNING: Running with API key authentication DISABLED!")
         logger.warning("   This is NOT recommended for production environments!")

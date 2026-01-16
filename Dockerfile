@@ -18,17 +18,24 @@ COPY backend/ /app/backend/
 COPY rdbms/ /app/rdbms/
 
 # Create directory for persistent data (will be mounted as volume in Railway)
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data && \
+    chmod 777 /app/data
 
 # Expose the port (Railway will override with $PORT)
 EXPOSE 8000
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    PYTHONDONTWRITEBYTECODE=1
 
-# Change to backend directory and start the server
+# Change to backend directory
 WORKDIR /app/backend
 
+# Add healthcheck (Docker will use this, platforms may override)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:${PORT:-8000}/health').raise_for_status()" || exit 1
+
 # Railway sets PORT environment variable, default to 8000 for local testing
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Use --timeout-keep-alive for better connection handling
+CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-keep-alive 75 --log-level info"]

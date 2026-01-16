@@ -5,14 +5,15 @@ services:
     env: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: python server.py
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 75
+    healthCheckPath: /health
     envVars:
       - key: PESADB_URL
         value: pesadb://localhost/default
       - key: REQUIRE_API_KEY
-        value: true
+        value: "false"
       - key: DEBUG
-        value: false
+        value: "false"
       - key: CORS_ORIGINS
         value: "*"
       - key: API_KEY
