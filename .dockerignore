@@ -1,0 +1,69 @@
+# Node modules and frontend build files
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/.next/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+.env.*
+*.env
+backend/.env
+backend/.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Tests
+tests/
+*_test.py
+test_*.py
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Deployment files (not needed in container)
+deploy-railway.sh
+deploy-railway.bat
+railway.json
+nixpacks.toml
+Procfile
+
+# Other
+*.zip
+*.tar.gz
+.cache/
