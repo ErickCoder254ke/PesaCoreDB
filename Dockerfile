@@ -17,10 +17,7 @@ COPY backend/ /app/backend/
 # Copy the rdbms module (needed by backend)
 COPY rdbms/ /app/rdbms/
 
-# Copy data directory if it exists (for initial data)
-COPY data/ /app/data/ 2>/dev/null || mkdir -p /app/data
-
-# Create directory for persistent data
+# Create directory for persistent data (will be mounted as volume in Railway)
 RUN mkdir -p /app/data
 
 # Expose the port (Railway will override with $PORT)
